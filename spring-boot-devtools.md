@@ -4,8 +4,8 @@ spring-boot-devtools实现springboot项目热部署
 ## 1.pom.xml
 
 ```xml
-		<!-- spring boot devtools -->
-		<dependency>
+        <!-- spring boot devtools -->
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-devtools</artifactId>
             <optional>true</optional>
@@ -20,6 +20,7 @@ spring-boot-devtools实现springboot项目热部署
 					<fork>true</fork>
 				</configuration>
 			</plugin>
+        </plugins>
 ```
 
 注意：spring-boot-maven-plugin插件要加入<configuration><fork>true</fork></configuration>配置。
