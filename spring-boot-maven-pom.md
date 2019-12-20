@@ -1,4 +1,6 @@
-spring boot maven pom.xml
+# spring boot maven pom.xml
+
+## 1. Spring Boot pom.xml 骨架配置
 
 ```xml
 <project xmlns="http://maven.apache.org/POM/4.0.0"
@@ -24,6 +26,7 @@ spring boot maven pom.xml
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
 		<version>2.1.11.RELEASE</version>
+        <relativePath/>
 	</parent>
 
 	<!-- 相关依赖包 -->
@@ -55,5 +58,35 @@ spring boot maven pom.xml
 	</build>			
 
 </project>
+```
+
+## 2. 常用的spring boot依赖包
+
+```xml
+		<!-- spring boot web -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+
+		<!-- spring boot test -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+```
+
+## 3. 第三方依赖包
+
+```xml
+		<!--  JDK不支持PKCS7,这里需要引入第三方包 -->
+		<dependency>
+      		<groupId>org.bouncycastle</groupId>
+		    <artifactId>bcprov-ext-jdk16</artifactId>
+		    <version>1.46</version>
+			<optional>true</optional>
+		</dependency>	
 ```
 
