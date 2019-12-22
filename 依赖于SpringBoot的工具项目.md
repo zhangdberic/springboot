@@ -72,7 +72,8 @@ Environment environment = ApplicationContextUtils.getBean(Environment.class);
 
 ```java
 @RunWith(SpringJunit4ClassRunner.class)
-@SpringApplicationConfiguration(classes=Z1Config.class)
+@SpringBootTest(classes=Z1Config.class)
+@AcitveProfiles("test")
 public class XxxTest {
     
     @Autowired
