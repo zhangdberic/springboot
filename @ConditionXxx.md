@@ -49,3 +49,14 @@ public @interface ConditionalOnProperty {
 @ConditionalOnBean(EurekaDiscoveryClientConfiguration.Marker.class)
 ```
 
+## 4.判断系统属性值
+
+```java
+ 	@Bean("hello")
+    @ConditionalOnSystemProperty(key = "user.name", value = "user")
+    public String userHello() {
+        return "hello user !";
+    }
+
+```
+
