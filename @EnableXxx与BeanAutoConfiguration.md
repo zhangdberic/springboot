@@ -47,7 +47,7 @@ public @interface EnableSSDB {
 }
 ```
 
-这里我们重点关注：@Import(SSDBTemplateAutoConfiguration.class)，Spring Boot在启动的时候，会获取每个源注释内的@Import源注释，并加载其声明的class，例如：这里的SSDBTemplateAutoConfiguration.class。
+这里我们重点关注：**@Import(SSDBTemplateAutoConfiguration.class)**，Spring Boot在启动的时候，会获取每个源注释内的@Import源注释，并加载其声明的class，例如：这里的SSDBTemplateAutoConfiguration.class。
 
 ## SSDBTemplateAutoConfiguration
 
