@@ -68,7 +68,7 @@ public class UploadBackupListener implements  ApplicationListener<UploadEvent>, 
 
 直接定义属性ApplicationEventPublisher，spring启动的时候，会自动注入。
 
-publishEvent(new UploadEvent(fileAttributes));，发布事件或说成触发事件。
+调用publishEvent(new UploadEvent(fileAttributes))方法，发布事件或说成触发事件。
 
 ```java
 	@Autowired
