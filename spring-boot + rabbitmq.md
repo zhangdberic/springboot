@@ -2,6 +2,20 @@
 
 # 1.配置
 
+## 1.1 pom.xml
+
+```xml
+		<!-- spring boot rabbitmq  -->
+		 <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+```
+
+
+
+## 1.2 配置属性说明
+
 ```yaml
 spring: 
   # rabbitmq

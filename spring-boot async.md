@@ -15,10 +15,11 @@ public class FssApplication {
 
 ```
 
-2.需要异步执行的bean在类头和方法上加上@Async
+2.需要异步执行的方法上加上@Async，如果在类上加上@Async则这个类的所有方法都是异步方法。
+
+**注意：**@Async修饰方法所在类，如果实现了接口，则应该使用接口类型注射到其他bean中，例如：某个bean要使用下面的UploadBackupListener，应该使用@Autowired EventListener<UploadEvent> uploadBackupListener，而不是@Autowired UploadBackupListener uploadBackupListener。如果非要基于第2种基于类注射，则需要修改：@EnableAsync(proxyTargetClass=true)，这其实就是Spring的两种代理实现，一种基于jdk interface proxy的接口代理，另一种基于CGLIB的类代理。
 
 ```java
-@Async
 @Configuration
 public class UploadBackupListener implements EventListener<UploadEvent> {
 
@@ -77,4 +78,18 @@ public class UploadBackupListener implements EventListener<UploadEvent> {
 
 }
 ```
+
+
+
+## FAQ
+
+Action:
+
+Consider injecting the bean as one of its interfaces or forcing the use of CGLib-based proxies by setting proxyTargetClass=true on @EnableAsync and/or @EnableCaching.
+
+@Async修饰方法所在类，如果实现了接口，则应该使用接口类型注射到其他bean中，例如：某个bean要使用下面的UploadBackupListener，应该使用@Autowired EventListener<UploadEvent> uploadBackupListener，而不是@Autowired UploadBackupListener uploadBackupListener。如果非要基于第2种基于类注射，则需要修改：@EnableAsync(proxyTargetClass=true)，这其实就是Spring的两种代理实现，一种基于jdk interface proxy的接口代理，另一种基于CGLIB的类代理。
+
+
+
+
 
