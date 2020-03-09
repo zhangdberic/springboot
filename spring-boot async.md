@@ -1,6 +1,8 @@
 # spring boot - async
 
-1.启动类加上@EnableAsync
+## 1.使用async使用异步
+
+### 1.1 启动类加上@EnableAsync
 
 ```java
 @SpringBootApplication
@@ -15,68 +17,72 @@ public class FssApplication {
 
 ```
 
-2.需要异步执行的方法上加上@Async，如果在类上加上@Async则这个类的所有方法都是异步方法。
+### 1.2 需要异步执行的方法上加上@Async
 
-**注意：**@Async修饰方法所在类，如果实现了接口，则应该使用接口类型注射到其他bean中，例如：某个bean要使用下面的UploadBackupListener，应该使用@Autowired EventListener<UploadEvent> uploadBackupListener，而不是@Autowired UploadBackupListener uploadBackupListener。如果非要基于第2种基于类注射，则需要修改：@EnableAsync(proxyTargetClass=true)，这其实就是Spring的两种代理实现，一种基于jdk interface proxy的接口代理，另一种基于CGLIB的类代理。
+如果在类上加上@Async则这个类的所有方法都是异步方法。
 
 ```java
 @Configuration
 public class UploadBackupListener implements EventListener<UploadEvent> {
 
-	@Bean
-	public DirectExchange fssFileBakExchange() {
-		// 注册一个 Direct 类型的交换机 默认持久化、非自动删除
-		return new DirectExchange("ex.hamirrored.fssfilebak");
-	}
-
-	@Bean
-	public Queue fssFileBakQueue() {
-		// 注册队列
-		return new Queue("queue.hamirrored.fssfilebak");
-	}
-
-	@Bean
-	public Binding fssFileExchangeBinging(Queue fssFileBakQueue, DirectExchange fssFileBakExchange) {
-		// 将队列以 info-msg 为绑定键绑定到交换机
-		return BindingBuilder.bind(fssFileBakQueue).to(fssFileBakExchange).with("fssfilebakrk");
-	}
-
 	@Autowired
 	private RabbitTemplate rabbitTemplate;
-
-	@Autowired
-	private MetadataJsonSerializer metadataJsonSerializer;
 
 	@Override
 	@Async
 	public void tigger(UploadEvent event) {
-		List<FileAttribute> fileAttributes = event.getFileAttributes();
-		if (!CollectionUtils.isEmpty(fileAttributes)) {
-			MessageProperties messageProperties = new MessageProperties();
-			messageProperties.setAppId("store_bak");
-			messageProperties.setContentEncoding("UTF-8");
-			messageProperties.setContentType("application/json");
-			messageProperties.setDeliveryMode(MessageDeliveryMode.PERSISTENT);
-			for (FileAttribute fileAttribute : fileAttributes) {
-				String metadataJson = this.metadataJsonSerializer.serialize(this.getUploadMetadata(fileAttribute));
-				byte[] body = metadataJson.getBytes();
-				this.rabbitTemplate.send("ex.hamirrored.fssfilebak", "fssfilebakrk",
-						new Message(body, messageProperties));
-			}
-		}
-	}
+        this.rabbitTemplate.send("ex.hamirrored.fssfilebak", "fssfilebakrk",
+						new Message("123", messageProperties));
+    }
+```
 
-	public Metadata getUploadMetadata(FileAttribute fileAttribute) {
-		Metadata metadata = new Metadata();
-		metadata.put("id", fileAttribute.getDfssId().toString());
-		metadata.put("action", "upload");
-		metadata.put(Metadata.FILE_NAME, fileAttribute.getFileName());
-		metadata.put(Metadata.CREATED_TIME, fileAttribute.getCreatedTime());
-		metadata.put(Metadata.SIZE, String.valueOf(fileAttribute.getSize()));
-		return metadata;
-	}
+**注意：**@Async修饰方法所在类，如果实现了接口，则应该使用接口类型注射到其他bean中，例如：某个bean要使用下面的UploadBackupListener，应该使用@Autowired EventListener<UploadEvent> uploadBackupListener，而不是@Autowired UploadBackupListener uploadBackupListener。如果非要基于第2种基于类注射，则需要修改：@EnableAsync(proxyTargetClass=true)，这其实就是Spring的两种代理实现，一种基于jdk interface proxy的接口代理，另一种基于CGLIB的类代理。
 
+### 1.3 调用这个异步方法
+
+```java
+@Autowired 
+private EventListener<UploadEvent> uploadBackupListener;
+
+public void publish(){
+    this.uploadBackupListener.tigger(new UploadEvent("123"));
 }
+```
+
+## 2. 使用独立的线程池
+
+定义一个独立的线程池bean，返回TaskExecutor接口对象。这个ThreadPoolTaskExecutor可以定义线程池的各种属性。
+
+```java
+    @Bean
+    public TaskExecutor taskExecutor() {  
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor(); 
+        executor.setThreadNamePrefix("Anno-Executor");
+        executor.setMaxPoolSize(10);  
+ 
+        // 设置拒绝策略
+        executor.setRejectedExecutionHandler(new RejectedExecutionHandler() {
+            @Override
+            public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+                // .....
+            }
+        });
+        // 使用预定义的异常处理类
+        // executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+ 
+        return executor;  
+    } 
+```
+
+@Async括号中指定上面线程池的bean名。
+
+
+```java
+    @Async("taskExecutor")
+	public void tigger(UploadEvent event) {
+        this.rabbitTemplate.send("ex.hamirrored.fssfilebak", "fssfilebakrk",
+						new Message("123", messageProperties));
+    }
 ```
 
 
