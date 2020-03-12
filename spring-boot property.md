@@ -42,9 +42,9 @@ public class SSDBPoolAutoConfiguration {
 
 
 
-## 2.yaml格式
+# 2.yaml格式
 
-### 常用配置
+## 常用配置
 
 ```yaml
 person:
@@ -92,9 +92,9 @@ public class Dog {
 }
 ```
 
-### 特殊字符转义
+## 特殊字符转义
 
-#### 字面量：普通的值（数字，字符串，布尔）
+字面量：普通的值（数字，字符串，布尔）
 
 k: v：字面直接来写；
 
@@ -110,7 +110,7 @@ name: ‘zhangsan \n lisi’：输出；zhangsan \n lisi
 
 **注意：因为是转义字符，因为单引号和双引号只适用于字符类型，不能用于其他类型。**
 
-### List bean配置
+## List bean配置
 
 ```yaml
 spring:  
@@ -121,13 +121,13 @@ hdfs:
   clean:  
     hdfsCleanStrategies:  
       - keepDays: 30  
-        pathPattern: /strategy/hello1/(\d{12})  
+        pathPattern: "/strategy/hello1/(\d{12})"  
       - keepDays: 30  
-        pathPattern: /strategy/hello2/(\d{12})  
+        pathPattern: "/strategy/hello2/(\d{12})"  
       - keepDays: 30  
-        pathPattern: /strategy/hello3/(\d{12})  
+        pathPattern: "/strategy/hello3/(\d{12})"  
       - keepDays: 30  
-        pathPattern: /strategy/hello4/(\d{12}) 
+        pathPattern: "/strategy/hello4/(\d{12})" 
 ```
 
 ```java
@@ -196,17 +196,17 @@ public class HDFSCleanStrategyConfig {
 }  
 ```
 
-### map bean 配置
+## map bean 配置
 
 ```yaml
 sgw:
   # 自定义的限流器配置
   rateLimiterConfig:
-    "[tgms]": 
+    "tgms": 
       rateTimeunit: 1
       rateNum: 100
       maxPermits: 500     
-    "[lnyg]": 
+    "lnyg": 
       rateTimeunit: 1
       rateNum: 10
       maxPermits: 20           
@@ -236,6 +236,6 @@ public class SgwConfig {
 
 
 
-### 好文章
+# 好文章
 
 http://www.pianshen.com/article/6280414949/
