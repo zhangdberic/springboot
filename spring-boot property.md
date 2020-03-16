@@ -110,7 +110,30 @@ name: ‘zhangsan \n lisi’：输出；zhangsan \n lisi
 
 **注意：因为是转义字符，因为单引号和双引号只适用于字符类型，不能用于其他类型。**
 
-## List bean配置
+## 数组
+
+### array value
+
+```yaml
+fssList: fss1,fss2
+```
+
+
+
+## List 配置
+
+### list value
+
+```yaml
+  dfssIdOperationServiceList:
+    - "dfss.get"
+    - "dfss.delete"
+    - "dfss.thumb_image"
+    - "dfss.set_metadata"
+    - "dfss.get_metadata"
+```
+
+### list bean
 
 ```yaml
 spring:  
@@ -196,7 +219,18 @@ public class HDFSCleanStrategyConfig {
 }  
 ```
 
-## map bean 配置
+## Map 配置
+
+### map value 配置
+
+```yaml
+  appDayReqNumLimitMap: 
+    "test": 2000
+    "lnyg": 2000
+    "tgms": 999999999999
+```
+
+### map bean 配置
 
 ```yaml
 sgw:
