@@ -181,15 +181,163 @@ public int findByUuidOrAge(@Param("loginName") String loginName,@Param("newName"
 newName);
 ```
 
+## 5.事务(Transaction)
+
+### 5.1 标准事务
+
+application.java，标记为@EnableTransactionManagement源注释，开启实物，例如：
+
+```java
+@SpringBootApplication
+@EnableJpaRepositories
+@EnableTransactionManagement
+public class SgwManagerApplication {
+	
+	public static void main(String[] args) {
+		SpringApplication.run(SgwManagerApplication.class, args);
+	}
+}
+```
+
+在logic类或方法上标记事务，@Transaction，例如：
+
+如果在类上使用@Transactional，则外部调用这个类的所有方法都使用事务外壳，否则应该标记在方法上。
+
+```
+@Service
+@Transactional
+public class AppInfoLogic {
+}
+```
+
+### 5.2 事务回滚
+
+只有是jpaRepository操作方法，抛出异常，则事务就会回滚，不管你是否catch了这个jpaRepository方法，例如：
+
+只要appInfoRepository.saveAndFlush(appInfo)抛出异常，就一点会回滚事务。即使catch了这个方法也是要回滚的。目前理解为jpa容器再执行数据库操作方法时，会把抛出的异常自动记录到上下文，即使你catch了异常，因为jpa容器能识别到上下文中的异常，也会回滚事务并抛出异常。
+
+```java
+@Service
+@Transactional
+public class AppInfoLogic {
+    public AppInfo add(AppInfo appInfo, Errors errors) {
+		try {
+			this.appInfoRepository.saveAndFlush(appInfo);
+		} catch (Exception uniqueAppKeyException) {
+			errors.rejectValue("appkey", "unique", "重复的应用键");
+			return null;
+		}
+    }
+ }
+```
+
+## 6.验证
+
+### 6.1 错误检查不应依赖于异常
+
+业务方法内部正常情况下不应该抛出异常，不应该依赖于异常来完成验证和检查，例如：唯一性检查，你不应该依赖于cache这个异常来判断是否出现了重复数据，你应该使用一条sql来检查是否已经存储重复项。例如：
+
+错误的唯一性检查例子：
+
+```java
+@Service
+@Transactional
+public class AppInfoLogic {
+    public AppInfo add(AppInfo appInfo, Errors errors) {
+		try {
+			this.appInfoRepository.saveAndFlush(appInfo);
+		} catch (Exception uniqueAppKeyException) {
+			errors.rejectValue("appkey", "unique", "重复的应用键");
+			return null;
+		}
+    }
+ }
+```
+
+正确的例子：
+
+```java
+@Service
+@Transactional
+public class AppInfoLogic {
+	public AppInfo add(AppInfo appInfo, Errors errors) {
+		// 验证新输入appkey是否已经存在
+		if (this.appInfoRepository.findByAppkey(appInfo.getAppkey()) != null) {
+			errors.rejectValue("appkey", "unique", "重复的应用键");
+			return null;
+		}
+    }
+}
+```
+
+### 6.2 Errors参数
+
+使用spring提供的org.springframework.validation.Errors;对象作为最后一个参数，把业务方法中产生的所有错误都存放到这个errors对象中。这样调用业务方法的程序(例如：controller)可以根据error.hasErrors()来判断是否有错误。即使不是MVC结构也是可以的，因为Errors接口不依赖于mvc相关包。例如：
+
+业务方法(logic)：
+
+```java
+@Service
+@Transactional
+public class AppInfoLogic {
+	public AppInfo add(AppInfo appInfo, Errors errors) {
+		// 验证新输入appkey是否已经存在
+		if (this.appInfoRepository.findByAppkey(appInfo.getAppkey()) != null) {
+			errors.rejectValue("appkey", "unique", "重复的应用键");
+			return null;
+		}
+    }
+}
+```
+
+控制器(controller)：
+
+```java
+	@PostMapping("/app/add.action")
+	public String addSubmit(@Validated AddAppForm addAppForm, BindingResult errors, Model model) {
+		if (errors.hasErrors()) {
+			return "app/add";
+		}
+
+		this.appInfoLogic.add(this.createAppInfo(addAppForm), errors);
+		if (errors.hasErrors()) {
+			return "app/add";
+		}
+		return "app/add_success";
+	}
+```
 
 
 
+# FAQ
 
+No validator could be found for constraint 'javax.validation.constraints.Size' validating type 'java.lang.Integer'
 
+Integer类型的属性，使用@NotEmpty或者NotBlank来限制了，这是不对的，应该使用@NotNull
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+在logic方法已经对jpaRepository抛出的异常进行了catch处理，并且没有再抛出异常，为什么业务方法能自动回滚实物，例如：
+
+```java
+@Service
+@Transactional
+public class AppInfoLogic {
+    public AppInfo add(AppInfo appInfo, Errors errors) {
+		try {
+			this.appInfoRepository.saveAndFlush(appInfo);
+		} catch (Exception uniqueAppKeyException) {
+			errors.rejectValue("appkey", "unique", "重复的应用键");
+			return null;
+		}
+    }
+```
+
+目前理解为jpa容器再执行数据库操作方法时，会自动记录异常到上下文，即使你catch了异常，因为jpa容器能识别到上下文中的异常，也会抛出并回滚事务。
 
 ## 5.好文章
 
 https://www.cnblogs.com/suizhikuo/p/9412825.html
 
-
+https://docs.jboss.org/hibernate/orm/5.2/userguide/html_single/Hibernate_User_Guide.html
 
