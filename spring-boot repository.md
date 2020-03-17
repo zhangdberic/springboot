@@ -108,6 +108,24 @@ public class SecurityLogic {
 
 ## 3.ORM
 
+### 3.1 id生成器
+
+#### increment生成器
+
+increment生成器，默认情况下jpa是不提供的，这里使用了hibernate的原生实现。
+
+@GeneratedValue(generator="gen_increment")的generator指定了要生成器，和@GenericGenerator(name="gen_increment", strategy = "increment")的name属性一一对应，strategy属性指定了使用的策略，这里为increment。
+
+```java
+	@Id
+	@GeneratedValue(generator="gen_increment")
+	@GenericGenerator(name="gen_increment", strategy = "increment")
+	@Column
+	private Long id;
+```
+
+
+
 ## 4.JpaRepository
 
 ### 4.1 方法命名操作
@@ -181,6 +199,12 @@ public int findByUuidOrAge(@Param("loginName") String loginName,@Param("newName"
 newName);
 ```
 
+### 4.4 flush()
+
+flush()刷新输出sql，正常情况要等到业务方法结束后，spring transaction aop会自动提交事务，但有的时候，需要数据修改的可见性，也就是前面的修改应该对后面操作马上有效，这种情况下需要flush。再有就是db和redis或者rabbitmq需要在同一个事务完成操作，你可以先操作数据库然后flush()输出sql，如果sql执行失败，则下面的redis或者rabbitmq不会执行，如果redis或者rabbitmq执行失败抛出异常，则db的事务也会回滚。
+
+
+
 ## 5.事务(Transaction)
 
 ### 5.1 标准事务
@@ -203,7 +227,7 @@ public class SgwManagerApplication {
 
 如果在类上使用@Transactional，则外部调用这个类的所有方法都使用事务外壳，否则应该标记在方法上。
 
-```
+```java
 @Service
 @Transactional
 public class AppInfoLogic {
@@ -229,82 +253,6 @@ public class AppInfoLogic {
 		}
     }
  }
-```
-
-## 6.验证
-
-### 6.1 错误检查不应依赖于异常
-
-业务方法内部正常情况下不应该抛出异常，不应该依赖于异常来完成验证和检查，例如：唯一性检查，你不应该依赖于cache这个异常来判断是否出现了重复数据，你应该使用一条sql来检查是否已经存储重复项。例如：
-
-错误的唯一性检查例子：
-
-```java
-@Service
-@Transactional
-public class AppInfoLogic {
-    public AppInfo add(AppInfo appInfo, Errors errors) {
-		try {
-			this.appInfoRepository.saveAndFlush(appInfo);
-		} catch (Exception uniqueAppKeyException) {
-			errors.rejectValue("appkey", "unique", "重复的应用键");
-			return null;
-		}
-    }
- }
-```
-
-正确的例子：
-
-```java
-@Service
-@Transactional
-public class AppInfoLogic {
-	public AppInfo add(AppInfo appInfo, Errors errors) {
-		// 验证新输入appkey是否已经存在
-		if (this.appInfoRepository.findByAppkey(appInfo.getAppkey()) != null) {
-			errors.rejectValue("appkey", "unique", "重复的应用键");
-			return null;
-		}
-    }
-}
-```
-
-### 6.2 Errors参数
-
-使用spring提供的org.springframework.validation.Errors;对象作为最后一个参数，把业务方法中产生的所有错误都存放到这个errors对象中。这样调用业务方法的程序(例如：controller)可以根据error.hasErrors()来判断是否有错误。即使不是MVC结构也是可以的，因为Errors接口不依赖于mvc相关包。例如：
-
-业务方法(logic)：
-
-```java
-@Service
-@Transactional
-public class AppInfoLogic {
-	public AppInfo add(AppInfo appInfo, Errors errors) {
-		// 验证新输入appkey是否已经存在
-		if (this.appInfoRepository.findByAppkey(appInfo.getAppkey()) != null) {
-			errors.rejectValue("appkey", "unique", "重复的应用键");
-			return null;
-		}
-    }
-}
-```
-
-控制器(controller)：
-
-```java
-	@PostMapping("/app/add.action")
-	public String addSubmit(@Validated AddAppForm addAppForm, BindingResult errors, Model model) {
-		if (errors.hasErrors()) {
-			return "app/add";
-		}
-
-		this.appInfoLogic.add(this.createAppInfo(addAppForm), errors);
-		if (errors.hasErrors()) {
-			return "app/add";
-		}
-		return "app/add_success";
-	}
 ```
 
 

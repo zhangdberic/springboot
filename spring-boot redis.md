@@ -31,7 +31,7 @@ spring:
       maxActive: 8
 ```
 
-## 1.3 RedisTemplate
+### 1.3 RedisTemplate
 
 ```java
 	@Autowired
@@ -39,6 +39,17 @@ spring:
 ```
 
 ## 2.RedisTemplate方法使用
+
+### hmset
+
+```java
+		Map<String, String> hashFields = new LinkedHashMap<String, String>();
+		hashFields.put("secret", appInfo.getSecret());
+		hashFields.put("dayReqNumLimit", String.valueOf(appInfo.getDayReqNumLimit()));
+		this.redisTemplate.opsForHash().putAll("app_" + appInfo.getAppkey(), hashFields);
+```
+
+
 
 ### 管道(pipelined)
 
