@@ -250,11 +250,19 @@ spring mvc集成了hibernate的validator，其是javax.validator(接口规范)�
 
 验证字符串不为空白，等同于!StringUtils.hasText(string)验证，注意：只能验证字符串类型，否则报错。
 
+No validator could be found for constraint 'javax.validation.constraints.Size' validating type 'java.lang.Integer'
+
+Integer类型的属性，使用@NotEmpty或者NotBlank来限制了，这是不对的，应该使用@NotNull
+
 ```
 @NotEmpty(message = "不能为空")
 ```
 
 验证字符串不为空字符串，等同于!StringUtils.hasLength(string)验证，注意：只能验证字符串类型，否则报错。
+
+No validator could be found for constraint 'javax.validation.constraints.Size' validating type 'java.lang.Integer'
+
+Integer类型的属性，使用@NotEmpty或者NotBlank来限制了，这是不对的，应该使用@NotNull
 
 ###### 字符串长度验证
 

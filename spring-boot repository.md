@@ -255,6 +255,35 @@ public class AppInfoLogic {
  }
 ```
 
+## 6.EntityManager
+
+
+
+Caused by: org.springframework.data.mapping.PropertyReferenceException: No property getServiceTypesTree found for type ServiceType!
+
+#### SQLQuery
+
+org.hibernate.MappingException: No Dialect mapping for JDBC type: -9
+
+```java
+	public List<ServiceType> getServiceTypesTree(String condition) {
+		String sql = "select t.id,substr(sys_connect_by_path(t.name,'/'),2) as name,t.sortcode,t.valid from SERVICE_TYPE t "
+				+ (StringUtils.hasLength(condition) ? condition : "")
+				+ " start with t.id=1 connect by prior t.id = t.parent_id ORDER SIBLINGS BY t.sortcode";
+		Query query = em.createNativeQuery(sql);
+		SQLQuery sqlLQuery = query.unwrap(SQLQuery.class);
+		sqlLQuery.addScalar("id", LongType.INSTANCE);
+		sqlLQuery.addScalar("name", StringType.INSTANCE);
+		sqlLQuery.addScalar("sortcode", BigDecimalType.INSTANCE);
+		sqlLQuery.addScalar("valid", BooleanType.INSTANCE);
+		sqlLQuery
+				.setResultTransformer(new AliasToBeanConstructorResultTransformer(
+						org.springframework.util.ClassUtils.getConstructorIfAvailable(ServiceType.class, Long.class,
+								String.class, BigDecimal.class, Boolean.class)));
+		return query.getResultList();
+	}
+```
+
 
 
 # FAQ
