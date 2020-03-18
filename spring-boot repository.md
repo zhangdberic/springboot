@@ -158,6 +158,17 @@ increment生成器，默认情况下jpa是不提供的，这里使用了hibernat
 	private Long id;
 ```
 
+#### ManyToOne(多对一)
+
+在相应的属性上声明@ManyToOne，指明为一个多对一对象，这个属性类必须是一个Entity类。@JoinColumn设置外键字段名。
+
+```java
+	/** 类别 */
+	@ManyToOne
+	@JoinColumn(name = "type_id")	
+	private ServiceType type;
+```
+
 
 
 ## 4.JpaRepository
