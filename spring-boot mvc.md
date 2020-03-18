@@ -236,6 +236,8 @@ public class ModifyAppForm {
 
 spring mvc集成了hibernate的validator，其是javax.validator(接口规范)的一种实现。
 
+好文章：https://www.jianshu.com/p/67d3637493c7
+
 ###### 不为空验证
 
 ```java
@@ -279,6 +281,8 @@ min可以省略，省略情况下不验证min，max可以省略，省略情况�
 ```
 
 min可以省略，省略情况下不验证min，max可以省略，省略情况下不验证max。
+
+
 
 #### Logic(业务类)
 
@@ -581,3 +585,4 @@ public class VelocityBeanDefinition {
 vm
 
 所有的vm文件存放到src/main/resources的templates目录下。
+

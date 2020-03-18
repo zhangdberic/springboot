@@ -29,7 +29,41 @@
 		</dependency>
 ```
 
-### 1.2 application.java
+### 1.2 application.yml
+
+```yml
+spring:
+  # jpa
+  jpa:
+    database-platform: z1.util.jpa.hibernate.OracleDialect
+  # oracle dbcp2
+  datasource:
+    driver-class-name: oracle.jdbc.driver.OracleDriver
+    url: jdbc:oracle:thin:@//192.168.0.250:1521/orcl
+    username: xxx
+    password: xxxxxxx
+    dbcp2:
+      initial-size: 1
+      min-idle: 1
+      max-idle: 8
+      test-on-borrow: true
+      validation-query: select 1 from dual
+      validation-query-timeout: 1000     
+```
+
+注意：这里使用的自定义的z1.util.jpa.hibernate.OracleDialect，代码如下：
+
+```java
+public class OracleDialect extends Oracle10gDialect {
+	public OracleDialect() {
+		registerHibernateType(Types.NVARCHAR, StandardBasicTypes.STRING.getName());
+	}
+}
+```
+
+
+
+### 1.3 application.java
 
 ```java
 @SpringBootApplication
@@ -182,9 +216,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
 nativeQuery=false(默认)
 
 ```java
-@Query(value="select u from User u where u.loginName = %:loginName")
+@Query(value="select u from User u where u.loginName = :loginName")
 public List<User> findByloginName(@Param("loginName") String loginName);
 ```
+
+注意：sql中的参数名变量前面要加入[:]冒号。
 
 
 
@@ -257,13 +293,66 @@ public class AppInfoLogic {
 
 ## 6.EntityManager
 
+有些时候，方法命名和@Query都不能满足要求，例如：需要动态组装sql，这个时候，就需要使用原生的JPA EntityManager来操作数据库了。
 
+JpaRespository使用EntityManager最好按照如下步骤来：
+
+1.声明一个扩展接口，这个接口内的方法，需要调用原生的EntityManager，例如：
+
+```java
+public interface ServiceTypeEmRepository {
+	public List<ServiceType> getServiceTypesTree(String condition);
+}
+```
+
+2.继承这个扩展接口，例如：同时继承JpaRepository和上面声明ServiceTypeEmRepository接口：
+
+```java
+public interface ServiceTypeRepository extends JpaRepository<ServiceType, Long> ,ServiceTypeEmRepository{
+}
+```
+
+3.实现这个扩展接口，类名必须是主接口名+Impl（不能扩展接口名+Impl)，这个要注意：
+
+例如：扩展接口实现类的类名ServiceTypeRepositoryImpl，不能是ServiceTypeEmRepositoryImpl，否则报错：
 
 Caused by: org.springframework.data.mapping.PropertyReferenceException: No property getServiceTypesTree found for type ServiceType!
 
+再有，这个类无须使用@Component来声明。
+
+spring jpa容器启动的时候，会把JpaRepository接口方法(jpa容器自动实现)和ServiceTypeEmRepository(手工方法)结合。
+
+```java
+public class ServiceTypeRepositoryImpl implements ServiceTypeEmRepository {
+
+	@PersistenceContext
+	private EntityManager em;
+
+	@SuppressWarnings("unchecked")
+	@Override
+	public List<ServiceType> getServiceTypesTree(String condition) {
+		String sql = "select t.id,substr(sys_connect_by_path(t.name,'/'),2) as name,t.sortcode,t.valid from SERVICE_TYPE t "
+				+ (StringUtils.hasLength(condition) ? condition : "")
+				+ " start with t.id=1 connect by prior t.id = t.parent_id ORDER SIBLINGS BY t.sortcode";
+		Query query = em.createNativeQuery(sql);
+		SQLQuery sqlLQuery = query.unwrap(SQLQuery.class);
+		sqlLQuery.addScalar("id", LongType.INSTANCE);
+		sqlLQuery.addScalar("name", StringType.INSTANCE);
+		sqlLQuery.addScalar("sortcode", BigDecimalType.INSTANCE);
+		sqlLQuery.addScalar("valid", BooleanType.INSTANCE);
+		sqlLQuery
+				.setResultTransformer(new AliasToBeanConstructorResultTransformer(
+						org.springframework.util.ClassUtils.getConstructorIfAvailable(ServiceType.class, Long.class,
+								String.class, BigDecimal.class, Boolean.class)));
+		return query.getResultList();
+	}
+
+}
+```
+
 #### SQLQuery
 
-org.hibernate.MappingException: No Dialect mapping for JDBC type: -9
+Spring JPA的底层实现是Hibernate，有的时候需要直接操作底层，例如，下面的例子：
 
 ```java
 	public List<ServiceType> getServiceTypesTree(String condition) {
@@ -284,35 +373,37 @@ org.hibernate.MappingException: No Dialect mapping for JDBC type: -9
 	}
 ```
 
+如果不使用addScalar指定映射的类型，就会报错如下：
 
+## 5.FAQ
 
-# FAQ
+org.hibernate.MappingException: No Dialect mapping for JDBC type: -9
 
-No validator could be found for constraint 'javax.validation.constraints.Size' validating type 'java.lang.Integer'
+JDBC的类型(-9)，无法映射到java类型，可以有两种解决方法：
 
-Integer类型的属性，使用@NotEmpty或者NotBlank来限制了，这是不对的，应该使用@NotNull
+1.本地sql，使用sqlLQuery.addScalar("xxx", StandardBasicTypes);手工指定类型。
 
---------------------------------------------------------------------------------------------------------------------------------------
-
-在logic方法已经对jpaRepository抛出的异常进行了catch处理，并且没有再抛出异常，为什么业务方法能自动回滚实物，例如：
+2.扩展数据库方言类，例如：
 
 ```java
-@Service
-@Transactional
-public class AppInfoLogic {
-    public AppInfo add(AppInfo appInfo, Errors errors) {
-		try {
-			this.appInfoRepository.saveAndFlush(appInfo);
-		} catch (Exception uniqueAppKeyException) {
-			errors.rejectValue("appkey", "unique", "重复的应用键");
-			return null;
-		}
-    }
+public class OracleDialect extends Oracle10gDialect {
+
+	public OracleDialect() {
+		registerHibernateType(Types.NVARCHAR, StandardBasicTypes.STRING.getName());
+	}
+
+}
 ```
 
-目前理解为jpa容器再执行数据库操作方法时，会自动记录异常到上下文，即使你catch了异常，因为jpa容器能识别到上下文中的异常，也会抛出并回滚事务。
+```yaml
+spring:
+  jpa:
+    database-platform: z1.util.jpa.hibernate.OracleDialect
+```
 
-## 5.好文章
+
+
+## 6.好文章
 
 https://www.cnblogs.com/suizhikuo/p/9412825.html
 
