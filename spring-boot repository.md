@@ -169,6 +169,16 @@ increment生成器，默认情况下jpa是不提供的，这里使用了hibernat
 	private ServiceType type;
 ```
 
+#### 时间类型
+
+```java
+    @Temporal(TemporalType.DATE)
+    private Date birth;
+
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date createTime;
+```
+
 
 
 ## 4.JpaRepository
@@ -423,3 +433,9 @@ https://docs.jboss.org/hibernate/orm/5.2/userguide/html_single/Hibernate_User_Gu
 https://blog.csdn.net/moshowgame/article/details/80650641
 
 http://www.seotest.cn/jishu/34389.html
+
+https://cloud.tencent.com/developer/article/1492946
+
+https://www.jianshu.com/p/074d6815a000
+
+https://my.oschina.net/MeiJianMing/blog/1932995
