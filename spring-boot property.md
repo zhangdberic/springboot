@@ -1,8 +1,38 @@
 # 配置属性
 
-# 1.专用的配置属性类
+# 1.配置文件
 
-## 1.1 配置属性类
+一般情况下应该是5个配置文件，放在src/main/resources目录如下：
+
+application.yml 默认配置文件，存放公共、每种环境都会用到的配置属性。
+
+application-dev.yml  指定开发环境的配置属性。
+
+application-test.yml 指定测试环境的配置属性。
+
+application-study.yml 指定学习环境的配置属性。
+
+application-proc.yml 指定生产环境的配置属性。
+
+可以在application.yml中通过，如下，指定默认的环境：
+
+```yaml
+spring:
+  profiles:
+    active: dev 
+```
+
+或者在重新启动的时候，指定运行环境，例如：
+
+```java
+java -jar xxx --spring.profiles.active=dev
+```
+
+注意： bootstrap.yml这个配置文件在spring boot环境中是无效的，其只有在spring cloud中才有效，因为spring cloud config要先于加载application.yml前，来指定应用名称、运行环境、配置文件gitlabs位置等。
+
+# 2.专用的配置属性类
+
+## 2.1 配置属性类
 
 ```java
 @ConfigurationProperties(prefix = SSDBPoolConfig.CONFIG_PREFIX)
@@ -26,7 +56,7 @@ public class SSDBPoolConfig extends GenericObjectPoolConfig {
 
 ```
 
-## 1.2 引用属性配置Bean
+## 2.2 引用属性配置Bean
 
 ```java
 @EnableConfigurationProperties(SSDBPoolConfig.class)
@@ -42,7 +72,7 @@ public class SSDBPoolAutoConfiguration {
 
 
 
-# 2.yaml格式
+# 3.yaml格式
 
 ## 常用配置
 
