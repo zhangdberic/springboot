@@ -232,7 +232,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 }
 ```
 
-#### 4.2.2 HQL查看
+#### 4.2.2 HQL查询
 
 nativeQuery=false(默认)
 
@@ -243,7 +243,7 @@ public List<User> findByloginName(@Param("loginName") String loginName);
 
 注意：sql中的参数名变量前面要加入[:]冒号。
 
-
+如果使用jdk1.8以上版本，并且编译加入(compile with -parameters)选项，则无需使用@Param("xxxx")来声明，jpa会自动获取到方法参数名。
 
 ### 4.3 @Modifying
 
@@ -259,6 +259,71 @@ newName);
 ### 4.4 flush()
 
 flush()刷新输出sql，正常情况要等到业务方法结束后，spring transaction aop会自动提交事务，但有的时候，需要数据修改的可见性，也就是前面的修改应该对后面操作马上有效，这种情况下需要flush。再有就是db和redis或者rabbitmq需要在同一个事务完成操作，你可以先操作数据库然后flush()输出sql，如果sql执行失败，则下面的redis或者rabbitmq不会执行，如果redis或者rabbitmq执行失败抛出异常，则db的事务也会回滚。
+
+### 4.5 动态条件分页查询(Example+Page)
+
+界面上提供了多个查询条件，用户可以选择性的使用其中一个或者多个查询条件，如果查询条件项有值(notEmpty)则作为查询条件，并且可以指定查询条件的匹配规则(相等 =xxx、全模糊 %xxx%、前模糊 %xxx、后模糊 xxx%)，还可以指定排序。查询的结果是一个分页对象，页面脚本(例如:velocity)可以根据page对象，来显示分页的相关信息。
+
+#### 4.5.1 基于ExampleMatcher实现
+
+ExampleMatcher实现动态查询比较简单，其可以轻松的动态查询，并实现like。但其不够灵活，例如：我想动态插入一段条件、基于in或者or的查询等都无法实现。
+
+例如：
+
+```java
+@Service
+@Transactional
+public class ServiceInfoLogic {
+
+    @Autowired
+	private ServiceInfoRepository serviceInfoRepository;
+
+	public Page<ServiceInfo> find(ServiceInfo condition, Integer pageNumber, Integer pageSize) {
+		ExampleMatcher matcher = ExampleMatcher.matching()
+				.withMatcher("code", ExampleMatcher.GenericPropertyMatchers.contains())
+				.withMatcher("name", ExampleMatcher.GenericPropertyMatchers.contains())
+				.withMatcher("location", ExampleMatcher.GenericPropertyMatchers.contains());
+		Example<ServiceInfo> example = Example.of(condition, matcher);
+		Pageable pageable = new PageRequest(pageNumber, pageSize, Sort.Direction.DESC, "createdTime");
+		Page<ServiceInfo> page = this.serviceInfoRepository.findAll(example, pageable);
+		return page;
+	}
+}
+```
+
+输出的SQL：
+
+```java
+select * from ( select serviceinf0_.id as id1_1_, serviceinf0_.code as code2_1_, serviceinf0_.created_time as created_time3_1_, serviceinf0_.ser_desc as ser_desc4_1_, serviceinf0_.location as location5_1_, serviceinf0_.manager as manager6_1_, serviceinf0_.name as name7_1_, serviceinf0_.sortcode as sortcode8_1_, serviceinf0_.type_id as type_id12_1_, serviceinf0_.updated_time as updated_time9_1_, serviceinf0_.valid as valid10_1_, serviceinf0_.version as version11_1_ from service_info serviceinf0_ where serviceinf0_.name like ? escape ? order by serviceinf0_.created_time desc ) where rownum <= ?
+     
+select count(serviceinf0_.id) as col_0_0_ from service_info serviceinf0_ where serviceinf0_.name like ? escape ?
+
+```
+
+有种情况是不执行count语句，查询结果集不满一页，说明已经是最后一页了。
+
+```java
+		if (content.size() != 0 && pageable.getPageSize() > content.size()) {
+			return new PageImpl<T>(content, pageable, pageable.getOffset() + content.size());
+		}
+```
+
+ExampleMatcher.GenericPropertyMatchers
+
+```
+DEFAULT (case-sensitive)    firstname = ?0    默认（大小写敏感）
+DEFAULT (case-insensitive)    LOWER(firstname) = LOWER(?0)    默认（忽略大小写）
+EXACT (case-sensitive)    firstname = ?0    精确匹配（大小写敏感）
+EXACT (case-insensitive)    LOWER(firstname) = LOWER(?0)    精确匹配（忽略大小写）
+STARTING (case-sensitive)    firstname like ?0 + ‘%’    前缀匹配（大小写敏感）
+STARTING (case-insensitive)    LOWER(firstname) like LOWER(?0) + ‘%’    前缀匹配（忽略大小写）
+ENDING (case-sensitive)    firstname like ‘%’ + ?0    后缀匹配（大小写敏感）
+ENDING (case-insensitive)    LOWER(firstname) like ‘%’ + LOWER(?0)    后缀匹配（忽略大小写）
+CONTAINING (case-sensitive)    firstname like ‘%’ + ?0 + ‘%’    模糊查询（大小写敏感）
+CONTAINING (case-insensitive)    LOWER(firstname) like ‘%’ + LOWER(?0) + ‘%’    模糊查询（忽略大小写）
+```
+
+#### 4.5.2 基于Specification实现
 
 
 
@@ -371,7 +436,7 @@ public class ServiceTypeRepositoryImpl implements ServiceTypeEmRepository {
 }
 ```
 
-#### SQLQuery
+### 6.1 SQLQuery
 
 Spring JPA的底层实现是Hibernate，有的时候需要直接操作底层，例如，下面的例子：
 
