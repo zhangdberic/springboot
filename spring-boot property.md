@@ -72,6 +72,129 @@ public class SSDBPoolAutoConfiguration {
 
 
 
+## 2.3 配置加密
+
+配置加密使用jasypt-spring-boot，github地址：https://github.com/ulisesbocchio/jasypt-spring-boot
+
+### 2.3.1 常用的属性加密
+
+#### 加密程序
+
+编写加密程序，对其他项目中需要加密的属性，执行加密获取加密后的值。
+
+**pom.xml**，注意：这里必须使用spring boot 2.1 以上，否则报错。
+
+```xml
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>cn.dongyuit</groupId>
+  <artifactId>spring-boot-encryptor</artifactId>
+  <version>0.0.1</version>
+  
+  	<!-- 配置属性 -->
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+		<maven.compiler.encoding>UTF-8</maven.compiler.encoding>
+		<java.version>1.8</java.version>
+		<skipTests>true</skipTests>
+	</properties>
+
+	<!-- spring boot parent -->
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>2.1.13.RELEASE</version>
+		<relativePath />
+	</parent>
+	
+	<!-- 相关依赖包 -->
+	<dependencies>
+		<!-- spring boot basic -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter</artifactId>
+		</dependency>
+		<!-- spring boot test -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!-- 配置文件加密 -->		
+		<dependency>
+            <groupId>com.github.ulisesbocchio</groupId>
+            <artifactId>jasypt-spring-boot-starter</artifactId>
+            <version>3.0.2</version>
+        </dependency>		
+	</dependencies>	
+					
+</project>
+```
+
+**编写加密测试用例**
+
+```java
+@RunWith(SpringRunner.class)
+@SpringBootTest
+public class Encryptor {
+	@Autowired
+    StringEncryptor encryptor;
+	
+	@Autowired
+	private Environment env;
+
+    @Test
+    public void getPass() {
+        String url = encryptor.encrypt("jdbc:mysql://47.97.192.116:3306/sell?characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2b8");
+        String name = encryptor.encrypt("你的数据库名");
+        String password = encryptor.encrypt("你的数据库密码");
+        System.out.println(encryptor.decrypt(password));
+        System.out.println(this.env.getProperty("test.password"));
+
+        System.out.println(url+"----------------");
+        System.out.println(name+"----------------");
+        System.out.println(password+"----------------");
+        Assert.assertTrue(name.length() > 0);
+        Assert.assertTrue(password.length() > 0);
+    }
+}
+```
+
+**执行加密测试用例**
+
+```shell
+-Djasypt.encryptor.password=xxxxx
+```
+
+使用jvm的-Djasypt.encryptor.password属性，指定密码。所有测试用例上的加密处理，都使用这个密码来加密。
+
+**配置文件属性加密测试**
+
+application.yml文件加密属性如下，对于的测试程序，为上面测试用例的this.env.getProperty("test.password")代码，其可以直接获取到加密前的原文。
+
+```yaml
+test:
+  password: ENC(dSQdMmG9NegQE0TdIRiLdjspqmNIryLvc60NBCRIG7UXPNDTfT30tH+6Jmrsnpgkt47qhwkUpsyG3yJlIq5zDQ==----------------)
+```
+
+#### 配置加密属性
+
+1.使用上面的**加密程序**对属性加密，获取加密后的值。
+
+2.配置属性使用加密值，例如;
+
+```yaml
+test:
+  password: ENC(dSQdMmG9NegQE0TdIRiLdjspqmNIryLvc60NBCRIG7UXPNDTfT30tH+6Jmrsnpgkt47qhwkUpsyG3yJlIq5zDQ==----------------)
+```
+
+这里注意：加密的属性值，使用ENV()进行包裹。
+
+3.启动jvm使用-Djasypt.encryptor.password=xxxxx属性指定解密的密码。
+
+
+
 # 3.yaml格式
 
 ## 常用配置
@@ -297,6 +420,39 @@ public class SgwConfig {
 ```
 
 注意：因为SgwConfig声明了@ConfigurationProperties源注释，spring会使用CGLIB进行代理操作，因此如果你调试在setRateLimiterConfig方法上加断点，rateLimiterConfig参数即使赋值正确也是{}，你只有在通过@Autowired SgwConfig sgwConfig声明，并使用方法内调用this.sgwConfig.getRateLimiterConfig()，才能真正的看到属性值配置是否成功。
+
+# 4.spring-configuration-metadata.json
+
+spring-configuration-metadata.json文件自动生成，spring boot在编译的时候，会自动生成META-INF/spring-configuration-metadata.json，生成这个文件依赖于spring-boot-configuration-processor依赖包，其基本原理：实现了javax.annotation.processing.Processor，在java编译阶段可以回调。回调操作执行时，会扫描类路径下所有的@ConfigurationProperties源注释，获取配置类的属性，自动生成spring-configuration-metadata.json文件。
+
+```xml
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-configuration-processor</artifactId>
+			<optional>true</optional>
+		</dependency>
+```
+
+additional-spring-configuration-metadata.json，手工补充属性元数据配置文件，有些情况上面的自动扫描程序，无法准确的获取配置属性（例如：配置属性在父类中则无法获取到），则需要自己编写这个文件作为spring-configuration-metadata.json的补充，文件格式同spring-configuration-metadata.json，其存放位置：src/main/resources/META-INF/additional-spring-configuration-metadata.json，例如：
+
+```json
+{
+  "properties": [
+        {
+            "name": "z1.ssdb.pool.testOnBorrow", 
+            "type": "java.lang.String", 
+            "description": "借出对象验证", 
+            "sourceType": "z1.tool.ssdb.pool.SSDBPoolConfig"
+        }, {
+            "name": "z1.ssdb.pool.jmxEnabled", 
+            "type": "java.lang.String", 
+            "description": "jmx是否允许", 
+            "sourceType": "z1.tool.ssdb.pool.SSDBPoolConfig"
+        }   		
+    ],
+  "hints": []
+}
+```
 
 
 
