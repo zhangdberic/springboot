@@ -454,6 +454,104 @@ additional-spring-configuration-metadata.json，手工补充属性元数据配�
 }
 ```
 
+# 5.spring cloud bus属性刷新
+
+spring cloud config bus支持属性在线刷新
+
+**pom.xml**
+
+```xml
+		<!-- spring cloud config client -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-config</artifactId>
+		</dependency>
+		<!-- spring boot actuator -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<!-- spring cloud bus -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-bus-amqp</artifactId>
+		</dependency>		
+
+```
+
+这里的spring-cloud-starter-bus-amqp是关键，理解为：基于rabbitmq的订阅机制，当前服务或程序监听某个配置队列，一旦配置队列有值，则说明有人发送了刷新请求。
+
+**bootstramp.yml**
+
+```yaml
+spring:
+  application:
+    name: app_name1
+  profiles: dev
+  cloud:
+    config:
+      uri: http://config1:8080
+      profile: dev  # 指定从config server配置的git上拉取的文件(例如:sc-sample1service-dev.yml)
+      username: user1   # config server的basic认证的user
+      password: pass1 # config server的basic认证的password    
+```
+
+**application.yml**
+
+```yml
+spring:
+  # 和spring-cloud-starter-bus-amqp配合,用于/bus/refresh分布式服务属性刷新
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    username: admin
+    password: Rabbitmq-401
+    
+# security shutdown      
+management:
+  endpoint:
+    shutdown:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include:
+        - "*"
+      base-path: /xxxYYYzzz
+  server:
+    port: 18080   
+
+```
+
+spring.rabbitmq.*，配置rabbitmq连接属性。
+
+management.*，配置/actuator的相关属性，因为刷新属性需要发送请求，默认：/actuator/bus-refresh，这里为了安全起见，设置一个特殊的base-path，例如：上面的/xxxYYYzzz（随机生成32位字符），代替/actuator前缀，并且为actuator请求设置一个特殊的端口。
+
+例如：
+
+```
+curl -X POST http://192.168.5.78:18080/xxxYYYzzz/bus-refresh
+```
+
+上面的配置，允许所有的actuator请求，如果只需要/bus-refresh请求，则设置为：
+
+```yaml
+management:
+  endpoints:
+    web:
+      exposure:
+        include: bus-refresh
+```
+
+
+
+## 支持在线刷新组件列表
+
+1. spring.datasource.hikari 
+2. 
+
+
+
 
 
 # 好文章
