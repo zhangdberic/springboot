@@ -21,6 +21,15 @@
 		</dependency>
 ```
 
+### 开启调试
+
+```yaml
+logging:
+  level:
+    root: INFO 
+    org.apache.http: DEBUG 
+```
+
 ### 连接池实现
 
 基于z1框架的z1.tool.httpclient.apache包内代码实现。
@@ -114,14 +123,42 @@ HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(param
 
 ### 发送请求
 
-#### exchange模式
+#### exchange请求
 
-spring-boot-service-client项目可以提供参照
+你可以添加请求头、请求参数，可以获取响应状态码、响应头、序列化后的响应对象。
 
 ```java
-			ResponseEntity<User> responseEntity = this.serviceClientRestTemplate.exchange(requestUri, method,
-					requestEntity, User.class);
+HttpHeaders headers = new HttpHeaders();
+headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+requestEntity = new HttpEntity<>(headers);
+MultiValueMap<String, Object> params = new LinkedMultiValueMap<String, Object>();
+params.add("name","黑哥");
+params.add("password","你说呢");
+HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(params, headers);
 ```
+
+#### execute(RequestCallback,ResponseExtractor)请求
+
+这是一个相对底层的方法，提供了底层的通讯协议，RequestCallback提供了请求的回调操作，你可以直接操作请求的输出流，ResponseExtractor提供了响应的回调操作，你可以直接操作响应的输入流。
+
+```java
+			this.restTemplate.execute(getFssFileUri, HttpMethod.GET, new RequestCallback() {
+
+				@Override
+				public void doWithRequest(ClientHttpRequest request) throws IOException {
+					request.getBody().write("黑哥".getBytes());
+				}
+			}, new ResponseExtractor<String>() {
+
+				@Override
+				public String extractData(ClientHttpResponse response) throws IOException {
+					InputStream inputStream = response.getBody();
+					return IoUtils.copyToString(inputStream, Charset.forName("UTF-8"));
+				}
+			});
+```
+
+
 
 ### 请求和响应对象转换器(HttpMessageConverter)
 
