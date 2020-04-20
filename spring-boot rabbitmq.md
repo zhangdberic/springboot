@@ -1,8 +1,8 @@
 # spring boot + rabbitmq
 
-# 1.配置
+## 1.配置
 
-## 1.1 pom.xml
+### 1.1 pom.xml
 
 ```xml
 		<!-- spring boot rabbitmq  -->
@@ -12,9 +12,7 @@
         </dependency>
 ```
 
-
-
-## 1.2 配置属性说明
+### 1.2 配置属性说明
 
 ```yaml
 spring: 
@@ -68,9 +66,15 @@ spring:
 
 **注意：**这里有个问题，如果使用spring的bean来定义queue、exchange、routingkey如下例子，则不能使用connection缓存模式（不能创建，并且有启动警告： RabbitAdmin auto declaration is not supported with CacheMode.CONNECTION）。你可以先使用channel缓存模式来定义（创建）queue、exchange、routingkey（使用channel模式先启动一下spring boot），再改回到connection缓存模式。
 
+## 2.消息发送者
+
+### 2.1 使用spring来定义消息
+
+如下，创建了：
+
 ```java
 @Configuration
-public class UploadBackupListener implements EventListener<UploadEvent> {
+public class BackupRabbitmqConfiguration {
 
 	@Bean
 	public DirectExchange fssFileBakExchange() {
@@ -85,53 +89,177 @@ public class UploadBackupListener implements EventListener<UploadEvent> {
 	}
 
 	@Bean
-	public Binding fssFileExchangeBinging(Queue fssFileBakQueue, DirectExchange fssFileBakExchange) {
-		// 将队列以 fssfilebakrk 为绑定键绑定到交换机
-		return BindingBuilder.bind(fssFileBakQueue).to(fssFileBakExchange).with("fssfilebakrk");
-	}
-
-	@Autowired
-	private RabbitTemplate rabbitTemplate;
-
-	@Autowired
-	private MetadataJsonSerializer metadataJsonSerializer;
-
-	@Override
-	public void tigger(UploadEvent event) {
-		List<FileAttribute> fileAttributes = event.getFileAttributes();
-		if (!CollectionUtils.isEmpty(fileAttributes)) {
-			MessageProperties messageProperties = new MessageProperties();
-			messageProperties.setAppId("store_bak");
-			messageProperties.setContentEncoding("UTF-8");
-			messageProperties.setContentType("application/json");
-			messageProperties.setDeliveryMode(MessageDeliveryMode.PERSISTENT);
-			for (FileAttribute fileAttribute : fileAttributes) {
-				String metadataJson = this.metadataJsonSerializer.serialize(this.getUploadMetadata(fileAttribute));
-				byte[] body = metadataJson.getBytes();
-				this.rabbitTemplate.send("ex.hamirrored.fssfilebak", "fssfilebakrk",
-						new Message(body, messageProperties));
-			}
-		}
-	}
-
-	public Metadata getUploadMetadata(FileAttribute fileAttribute) {
-		Metadata metadata = new Metadata();
-		metadata.put("id", fileAttribute.getDfssId().toString());
-		metadata.put("action", "upload");
-		metadata.put(Metadata.FILE_NAME, fileAttribute.getFileName());
-		metadata.put(Metadata.CREATED_TIME, fileAttribute.getCreatedTime());
-		metadata.put(Metadata.SIZE, String.valueOf(fileAttribute.getSize()));
-		return metadata;
+	public Binding fssFileBakRoutingKey(Queue fssFileBakQueue, DirectExchange fssFileBakExchange) {
+		// 绑定queue和exchange到routingKey
+		return BindingBuilder.bind(fssFileBakQueue).to(fssFileBakExchange)
+				.with("fssfilebakrk");
 	}
 
 }
 ```
 
-channel.basicAck(message.getMessageProperties().getDeliveryTag(), false); // 消息的标识，false只确认当前一个消息收到，true确认所有consumer获得的消息 channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, true); // ack返回false，并重新回到队列，api里面解释得很清楚 channel.basicReject(message.getMessageProperties().getDeliveryTag(), true); // 拒绝消息
+### 2.2  发送消息
+
+#### 2.2.1 靠近底层的发送消息方式
+
+1.自定义消息属性;
+
+2.自己序列化发送对象;
+
+3.发送byte[]数据;
+
+```java
+	@Autowired
+	private RabbitTemplate rabbitTemplate;
+
+    public void send(){
+		MessageProperties messageProperties = new MessageProperties();
+		messageProperties.setAppId("store_bak");
+		messageProperties.setContentEncoding("UTF-8");
+		messageProperties.setContentType("application/json");
+		messageProperties.setDeliveryMode(MessageDeliveryMode.PERSISTENT);
+		String metadataJson = this.metadataJsonSerializer.serialize(uploadMetadata);
+		byte[] body = metadataJson.getBytes();        
+   	    this.rabbitTemplate.send("ex.hamirrored.fssfilebak","fssfilebakrk", new Message(body,messageProperties));
+    }
+```
+
+#### 2.2.2 上层发送消息方式
+
+1.声明对象序列化器;
+
+2.直接发送对象,RabbitTemplate自动序列化;
+
+```java
+@Configuration
+public class BeanConfiguration {
+
+	@Bean
+	public RabbitListenerContainerFactory<?> rabbitListenerContainerFactory(ConnectionFactory connectionFactory) {
+		SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
+		factory.setConnectionFactory(connectionFactory);
+		// 配置序列化器
+		factory.setMessageConverter(new Jackson2JsonMessageConverter());
+		return factory;
+	}
+}
+```
+
+```java
+	@Autowired
+	private RabbitTemplate rabbitTemplate;
+
+    public void send(){
+      this.rabbitTemplate.convertAndSend("ex.hamirrored.fssfilebak","fssfilebakrk", uploadMetadata);
+    }
+```
+
+#### 2.2.3 RabbitTemplate
+
+正常情况下，你可以直接在spring bean中声明@Autowired RabbitTemplate rabbitTemplate; 来使用RabbitTemplate。你也可以自定义RabbitTemplate属性，例如：为RabbitTemplate配置routingKey和queueName属性，再使用这个RabbitTemplate发生消息的时候，就无须再指定发送的routingKey和queueName了。例如：
+
+```java
+@Configuration
+public class BeanConfiguration {
+
+   @Bean
+   public RabbitTemplate fssBakRabbitTemplate(){
+      RabbitTemplate rabbitTemplate = new RabbitTemplate();
+      rabbitTemplate.setExchange("ex.hamirrored.fssfilebak");
+      rabbitTemplate.setRoutingKey("fssfilebakrk");
+      return rabbitTemplate;
+   }
+}
+
+```
+
+```java
+@Component
+public class Sender(){
+	@Autowired
+	private RabbitTemplate fssBakRabbitTemplate;
+
+    public void send(){
+		MessageProperties messageProperties = new MessageProperties();
+		messageProperties.setAppId("store_bak");
+		messageProperties.setContentEncoding("UTF-8");
+		messageProperties.setContentType("application/json");
+		messageProperties.setDeliveryMode(MessageDeliveryMode.PERSISTENT);
+		String metadataJson = this.metadataJsonSerializer.serialize(this.getUploadMetadata(fileAttribute));
+		byte[] body = metadataJson.getBytes();        
+   	    this.rabbitTemplate.send(new Message(body,messageProperties));
+    }    
+}
+```
+
+
+
+### 2.3 接收消息
+
+#### 2.3.1 监听方法
+
+声明spring bean的某个方法为Rabbit监听器方法。在方法上声明@RabbitListener源注释，并配置相关属性，这里的属性可以通过配置属性中获取到，例如：${xxxx}。
+
+@RabbitListener声明这个方法为监听器方法，负责接收Rabbitmq消息；
+
+@QueueBinding绑定exchange到queue，并声明routingKey；
+
+@Queue声明队列和队列属性；
+
+@Exchange声明交换机和属性；
+
+@PayLoad声明被消息反序列化后的对象；
+
+@Header声明要使用的消息头值，例如：这里的DELIVERY_TAG；
+
+下面的例子，是一个手工确认消息的实现；
+
+```java
+@Component
+public class DfssFssActionListener {
+
+	@RabbitListener(bindings = @QueueBinding(
+	        value = @Queue(value = "${fss.backupRabbitmq.queueName}", durable = "true"),
+	        exchange = @Exchange(value = "${fss.backupRabbitmq.exchangeName}", durable = "true"), 
+	        key = "${fss.backupRabbitmq.routingKey}")
+	)
+	public void onMessage(@Payload Map<String,String> fssFileBackMap, @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag, Channel channel) throws Exception {
+		//channel.basicAck(deliveryTag,false);
+		channel.basicReject(deliveryTag, true); // 拒绝,重新排队到队列尾部
+	}
+
+}
+```
+
+#### 2.3.2 手工确认消息
+
+```java
+channel.basicAck(deliveryTag,false);
+```
+
+deliveryTag是一个唯一的消息序号(例如：1,2,3,4)，false只确认当前的这个消息，true则确认这个deliveryTag序号之前的所有消息。
+
+#### 2.3.3 手工拒绝消息
+
+```java
+channel.basicReject(deliveryTag, true);
+```
+
+deliveryTag是一个唯一的消息序号(例如：1,2,3,4)，true则重新排队这个消息到队列尾部，false则丢弃这个消息。
+
+```
+channel.basicNack(deliveryTag, true, false);
+```
+
+
+
+
 
 
 
 ## 好文章
+
+https://www.jianshu.com/p/2c2a7cfdd38a
 
 http://www.imooc.com/article/274470
 
