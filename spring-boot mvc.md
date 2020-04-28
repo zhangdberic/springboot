@@ -371,6 +371,14 @@ min可以省略，省略情况下不验证min，max可以省略，省略情况�
 
 #### Logic(业务类)
 
+问题：
+
+业务方法中的errors.rejectValue("appkey", "unique", "重复的应用键")，fieldName如何和表单from对齐？
+
+如果form是由多个domain对象组成，怎么办?，一个业务方法多个domain参数，reject拒绝fieldName怎么写?
+
+errors的.reject的fieldName是否和form表单属性耦合？
+
 几个原则：
 
 1.表单form不应作为业务方法参数，应该使用domain对象作为参数，减少对mvc的耦合性。
@@ -379,7 +387,7 @@ min可以省略，省略情况下不验证min，max可以省略，省略情况�
 
 ##### 错误检查不应依赖于异常
 
-业务方法内部正常情况下不应该抛出异常，不应该依赖于异常来完成验证和检查，例如：唯一性检查，你不应该依赖于cache这个异常来判断是否出现了重复数据，你应该使用一条sql来检查是否已经存储重复项。例如：
+业务方法内部正常情况下不应该抛出异常，不应该依赖于异常来完成验证和检查，例如：唯一性检查，你不应该依赖于异常catch判断是否出现了重复数据，你应该使用一条sql来检查是否已经存储重复项。例如：
 
 错误的唯一性检查例子：
 
@@ -416,7 +424,7 @@ public class AppInfoLogic {
 
 ##### Errors参数
 
-使用spring提供的org.springframework.validation.Errors;对象作为最后一个参数，把业务方法中产生的所有错误都存放(收集)到这个errors对象中。这样调用业务方法的程序(例如：controller)可以根据error.hasErrors()来判断是否有错误。即使不是MVC结构也是可以的，因为Errors接口不依赖于mvc相关包。例如：
+使用spring提供的org.springframework.validation.Errors;对象作为最后一个参数，把业务方法中产生的所有错误都存放(收集)到这个errors对象中。这样调用业务方法的程序(例如：controller)可以根据error.hasErrors()来判断是否有错误。**即使不是MVC结构也是可以的，因为Errors接口不依赖于mvc相关包**。例如：
 
 业务方法(logic)：
 
