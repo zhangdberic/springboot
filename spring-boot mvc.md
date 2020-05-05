@@ -1,12 +1,10 @@
-# spring boot mvc
+# spring boot web
 
-## 1.创建mvc项目
-
-### 1.1 创建准备
+## 1. 创建准备
 
 **注意：不要使用war创建项目，就使用普通的jar创建项目。**
 
-#### 1.1.1 pom.xml
+### 1.1 pom.xml
 
 ```xml
 		<!-- spring boot web -->
@@ -16,7 +14,9 @@
 		</dependency>
 ```
 
-### 1.2 src/main/java
+## 2. 工程目录结构
+
+### 2.1 src/main/java
 
 例如：sgw项目
 
@@ -24,9 +24,9 @@ cn.dongyuit.sgw(域名+应用简称)
 
 cn.dongyuit.sgw.manager(域名+应用简称+模块)
 
-cn.dongyuit.sgw.manager.controller(控制器)
+cn.dongyuit.sgw.manager.web.controller(控制器包)
 
-cn.dongyuit.sgw.manager.controller.form(表单包)
+cn.dongyuit.sgw.manager.web.form(表单包)
 
 cn.dongyuit.sgw.manager.logic(业务逻辑包)
 
@@ -34,15 +34,17 @@ cn.dongyuit.sgw.manager.domain(域对象包)
 
 cn.dongyuit.sgw.manager.repository(持久化对象包)
 
-cn.dongyuit.sgw.manager.properties(属性配置包)
+cn.dongyuit.sgw.properties(属性配置包)
 
-BeanConfigurer.java(bean声明类)
+cn.dongyuit.sgw.web.MvcConfigurer(mvc配置类)
 
-MvcConfigurer(mvc配置类)
+cn.dongyuit.sgw.web.ControllerExceptionAdvice(全局异常处理器)
 
-SgwManagerApplication(应用启动类)
+cn.dongyuit.sgw.BeanConfiguration.java(bean声明和配置类)
 
-#### Controller(控制器)
+cn.dongyuit.sgw.SgwManagerApplication(应用启动类)
+
+#### 2.2.1 Controller(控制器)
 
 下面是一个典型的控制器类，其实现了登录控制：
 
@@ -74,11 +76,23 @@ public class LoginController {
 
 第1步要执行errors.hasErrors()，先判断表单项绑定到form和form验证是否错误。
 
-第2步执行业务方法调用。
+try{
 
-第3步要执行errors.hasError()，验证业务方法执行是否有错误。
+第2步执行业务方法调用;    # 业务方法内业务异常会抛出BusinessException异常
 
-第4步存放页面要显示的数据到model对象，并返回视图名。
+第3步存放页面要显示的数据到model对象;
+
+第4步返回视图名。
+
+}catch(BusinessException businessException) {
+
+   BusinessExceptionUtils.addErrors(businessException,errors); # 发送业务级异常,则把业务errorCode添加到Errors对象;
+
+   return 当前表单页视图名;
+
+}
+
+例子，如下：
 
 ```java
 @Controller
@@ -86,19 +100,23 @@ public class LoginController {
 
 	@Autowired
 	private SecurityLogic securityLogic;
-
+    
 	@PostMapping("/login.action")
-	public String loginSubmit(@Validated LoginForm loginForm, BindingResult errors, Model model, HttpSession session) {
+	public String loginSubmit(@Validated LoginForm loginForm, BindingResult errors, Model model) {
 		if (errors.hasErrors()) {
-			return "login";
+			return "/login";
 		}
-		User user = this.securityLogic.login(loginForm.getLoginName(), loginForm.getPassword(), errors);
-		if (errors.hasErrors()) {
-			return "login";
+		try {
+			User user = this.securityLogic.login(loginForm.getLoginName(), loginForm.getPassword());
+			model.addAttribute("user", user);
+			this.session.create();
+			this.session.setAttribute("user", user);
+			return "redirect:/index.action";
+		} catch (BusinessException businessException) {
+			BusinessExceptionUtils.addErrors(businessException, errors);
+			return "/login";
 		}
-		model.addAttribute("user", user);
-		session.setAttribute("user", user);
-		return "index";
+
 	}
 
 }
@@ -123,27 +141,38 @@ public class LoginController {
 
 ##### HttpSession控制方法参数
 
-使用HttpSession作为controller方法的参数。
+使用HttpSession作为controller方法的参数，你可以在controller方法内部操作"会话"。
 
 ```java
+@Controller
+public class LoginController {
+
+	@Autowired
+	private SecurityLogic securityLogic;
+    
 	@PostMapping("/login.action")
 	public String loginSubmit(@Validated LoginForm loginForm, BindingResult errors, Model model, HttpSession session) {
 		if (errors.hasErrors()) {
 			return "login";
 		}
-		User user = this.securityLogic.login(loginForm.getLoginName(), loginForm.getPassword(), errors);
-		if (errors.hasErrors()) {
-			return "login";
-		}
-		model.addAttribute("user", user);
-		session.setAttribute("user", user);
-		return "index";
+        try{
+	        User user = this.securityLogic.login(loginForm.getLoginName(), loginForm.getPassword());            
+            model.addAttribute("user", user);
+            session.setAttribute("user", user);  #　操作会话
+            return "redirect:/index";            
+        }catch(BusinessException businessException){
+            BusinessExceptionUtils.addErrors(businessException,errors);
+            return "login";
+        }
+
 	}
+
+}
 ```
 
 ##### 拦截器(Interceptor)
 
-编写一个拦截器，例如：
+编写一个拦截器，继承HandlerInterceptorAdapter，并且声明为Spring bean(@Component)，例如：
 
 ```java
 @Component
@@ -182,7 +211,7 @@ public class SecurityInterceptor extends HandlerInterceptorAdapter {
 
 ```
 
-添加到mvc配置中
+添加到mvc配置中，例如，下面的SecurityInterceptor。
 
 ```java
 @Configuration
@@ -200,9 +229,7 @@ public class MvcConfigurer extends WebMvcConfigurerAdapter {
 }
 ```
 
-
-
-#### Form(表单)
+#### 2.2.2 Form(表单)
 
 form对象有一个原则，form对象不应与domain对象有任何关联，例如：不应继承于domain对象，也不能使用domain对象作为属性等，这样可以减少耦合性，让form对象和domain对象各司其职。
 
@@ -235,7 +262,10 @@ public class ModifyAppForm {
 	public ModifyAppForm() {
 
 	}
-
+	/**
+    * Domain AppInfo -> ModifyAppForm
+    *
+    **/
 	public ModifyAppForm(AppInfo appInfo) {
 		this.id = appInfo.getId();
 		this.appkey = appInfo.getAppkey();
@@ -243,7 +273,10 @@ public class ModifyAppForm {
 		this.dayReqNumLimit = appInfo.getDayReqNumLimit();
 		this.valid = appInfo.getValid();
 	}
-
+	/**
+	* ModifyAppForm -> Domain AppInfo
+	*
+	**/
 	public AppInfo toAppInfo() {
 		AppInfo appInfo = new AppInfo();
 		appInfo.setId(this.id);
@@ -254,7 +287,10 @@ public class ModifyAppForm {
 		appInfo.setValid(this.valid);
 		return appInfo;
 	}
-
+	/**
+	* 表单的复杂验证
+	*
+	**/
 	public boolean validate(Errors errors) {
 		if (this.changeSecret) {
 			if (!StringUtils.hasText(this.secret)) {
@@ -267,30 +303,6 @@ public class ModifyAppForm {
 			}
 		}
 		return errors.hasErrors();
-	}
-```
-
-##### toDomain()
-
-参见上面的ModifyAppForm的toAppInfo()方法，可以把当前ModifyAppForm表单对象转换到AppInfo对象。AppInfo对象是一个Domain对象，是业务方法appInfoLogic.update的参数。例如：
-
-注意：modifyAppForm.toAppInfo()操作。
-
-```java
-	@PostMapping("/app/modify.action")
-	public String modifySubmit(@ModelAttribute("modifyForm") @Validated ModifyAppForm modifyAppForm,
-			BindingResult errors, Model model) {
-		if (errors.hasErrors()) {
-			return "app/modify";
-		}
-		if (modifyAppForm.validate(errors)) {
-			return "app/modify";
-		}
-		this.appInfoLogic.update(modifyAppForm.toAppInfo(), modifyAppForm.isChangeSecret(), errors);
-		if (errors.hasErrors()) {
-			return "app/modify";
-		}
-		return "app/modify_success";
 	}
 ```
 
@@ -307,15 +319,55 @@ public class ModifyAppForm {
 		if (appInfo == null) {
 			return "/app/find";
 		}
-		ModifyAppForm modifyAppForm = new ModifyAppForm(appInfo);
+		ModifyAppForm modifyAppForm = new ModifyAppForm(appInfo);  # 根据domain AppInfo创建form ModifyAppForm对象
 		model.addAttribute("modifyForm", modifyAppForm);
 		return "app/modify";
 	}
 ```
 
+##### toDomain()
+
+参见上面的ModifyAppForm的toAppInfo()方法，可以把当前ModifyAppForm表单对象转换到AppInfo对象。AppInfo对象是一个Domain对象，是业务方法appInfoLogic.update的参数。例如：
+
+注意：modifyAppForm.toAppInfo()操作。
+
+```java
+	@PostMapping("/app/modify.action")
+	public String modifySubmit(@ModelAttribute("modifyForm") @Validated ModifyAppForm modifyAppForm,BindingResult errors, Model model) {
+		if (errors.hasErrors() || modifyAppForm.validate(errors)) {
+			return "/app/modify";
+		}
+		try {
+            # 下面的modifyAppForm.toAppInfo()对象，根据form ModifyAppForm对象创建Domain AppInfo对象
+			this.appInfoLogic.update(modifyAppForm.toAppInfo(), modifyAppForm.isChangeSecret());
+			return "/app/modify_success";
+		} catch (BusinessException businessException) {
+			BusinessExceptionUtils.addErrors(businessException, errors);
+			return "/app/modify";
+		}
+	}
+```
+
 ##### validate(Errors errors)
 
-对javax.validation声明式验证的补充操作，javax.validation和org.hibernate.validator只能对表单属性进行基本的验证，在进行复杂验证的时候，则力不从心，这里我们为form对象定义一个validate(Errors errors)方法对表单进行补充验证，javax.validation和org.hibernate.validator不能满足的地方，使用这个方法来验证，例如：参见上面的ModifyAppForm的validate(Errors erros)方法，其完成了只有changeSecret在为true的情况下，才需要验证secret项。
+对javax.validation声明式验证的补充操作，javax.validation和org.hibernate.validator只能对表单属性进行基本的验证，在进行复杂验证的时候，则力不从心，因此我们为form对象定义一个validate(Errors errors)方法对表单进行补充验证，javax.validation和org.hibernate.validator不能满足的地方，使用这个方法来验证，例如：参见上面的ModifyAppForm的validate(Errors erros)方法，其完成了只有changeSecret在为true的情况下，才需要验证secret项。
+
+```java
+	@PostMapping("/app/modify.action")
+	public String modifySubmit(@ModelAttribute("modifyForm") @Validated ModifyAppForm modifyAppForm,BindingResult errors, Model model) {
+        # 下面的modifyAppForm.validate(errors)实现了表单的复杂验证，并把错误信息写入到Spring Errors对象中。
+		if (errors.hasErrors() || modifyAppForm.validate(errors)) {
+			return "/app/modify";
+		}
+		try {
+			this.appInfoLogic.update(modifyAppForm.toAppInfo(), modifyAppForm.isChangeSecret());
+			return "/app/modify_success";
+		} catch (BusinessException businessException) {
+			BusinessExceptionUtils.addErrors(businessException, errors);
+			return "/app/modify";
+		}
+	}
+```
 
 ##### javax.validation和org.hibernate.validator
 
@@ -335,7 +387,7 @@ spring mvc集成了hibernate的validator，其是javax.validator(接口规范)�
 @NotBlank(message = "不能为空")
 ```
 
-验证字符串不为空白，等同于!StringUtils.hasText(string)验证，注意：只能验证字符串类型，否则报错。
+验证字符串不为空白，等同于!StringUtils.hasText(string)验证，**注意：只能验证字符串类型，否则报错**。
 
 No validator could be found for constraint 'javax.validation.constraints.Size' validating type 'java.lang.Integer'
 
@@ -344,12 +396,6 @@ Integer类型的属性，使用@NotEmpty或者NotBlank来限制了，这是不�
 ```
 @NotEmpty(message = "不能为空")
 ```
-
-验证字符串不为空字符串，等同于!StringUtils.hasLength(string)验证，注意：只能验证字符串类型，否则报错。
-
-No validator could be found for constraint 'javax.validation.constraints.Size' validating type 'java.lang.Integer'
-
-Integer类型的属性，使用@NotEmpty或者NotBlank来限制了，这是不对的，应该使用@NotNull
 
 ###### 字符串长度验证
 
@@ -367,103 +413,206 @@ min可以省略，省略情况下不验证min，max可以省略，省略情况�
 
 min可以省略，省略情况下不验证min，max可以省略，省略情况下不验证max。
 
-
-
-#### Logic(业务类)
-
-问题：
-
-业务方法中的errors.rejectValue("appkey", "unique", "重复的应用键")，fieldName如何和表单from对齐？
-
-如果form是由多个domain对象组成，怎么办?，一个业务方法多个domain参数，reject拒绝fieldName怎么写?
-
-errors的.reject的fieldName是否和form表单属性耦合？
+#### 2.2.3 Logic(业务类)
 
 几个原则：
 
 1.表单form不应作为业务方法参数，应该使用domain对象作为参数，减少对mvc的耦合性。
 
-2.业务方法内验证数据的时候，不应使用抛出异常的策略，应该使用Errors对象作为方法参数，验证失败则写入errors对象，控制器(controller)在执行完业务方法后优先使用errors.hasErrors()判断是否有错误。
+2.业务方法内验证数据出错或者业务逻辑异常的时候(非系统异常)，应抛出BusinessException异常，并且尽量使用BusinessAssert(业务断言)来处理，代码规整而且好理解。Controller的方法会使用try catch来拦截logic方法抛出BusinessException异常并且添加到Errors对象中，再返回给表单页，具体见“@PostMapping方法章节”。
 
-##### 错误检查不应依赖于异常
-
-业务方法内部正常情况下不应该抛出异常，不应该依赖于异常来完成验证和检查，例如：唯一性检查，你不应该依赖于异常catch判断是否出现了重复数据，你应该使用一条sql来检查是否已经存储重复项。例如：
-
-错误的唯一性检查例子：
+例如：
 
 ```java
 @Service
 @Transactional
-public class AppInfoLogic {
-    public AppInfo add(AppInfo appInfo, Errors errors) {
-		try {
-			this.appInfoRepository.saveAndFlush(appInfo);
-		} catch (Exception uniqueAppKeyException) {
-			errors.rejectValue("appkey", "unique", "重复的应用键");
-			return null;
-		}
-    }
- }
-```
+public class SecurityLogic {
+	/**　计算摘要的盐　*/
+	private String salt = "xxxxx";
 
-正确的例子：
+	@Autowired
+	private DataDigest dataDigest;
 
-```java
-@Service
-@Transactional
-public class AppInfoLogic {
-	public AppInfo add(AppInfo appInfo, Errors errors) {
-		// 验证新输入appkey是否已经存在
-		if (this.appInfoRepository.findByAppkey(appInfo.getAppkey()) != null) {
-			errors.rejectValue("appkey", "unique", "重复的应用键");
-			return null;
-		}
-    }
-}
-```
+	@Autowired
+	private UserRepository userRepository;
 
-##### Errors参数
+	@Autowired
+	private LogLogic logLogic;
 
-使用spring提供的org.springframework.validation.Errors;对象作为最后一个参数，把业务方法中产生的所有错误都存放(收集)到这个errors对象中。这样调用业务方法的程序(例如：controller)可以根据error.hasErrors()来判断是否有错误。**即使不是MVC结构也是可以的，因为Errors接口不依赖于mvc相关包**。例如：
-
-业务方法(logic)：
-
-```java
-@Service
-@Transactional
-public class AppInfoLogic {
-	public AppInfo add(AppInfo appInfo, Errors errors) {
-		// 验证新输入appkey是否已经存在
-		if (this.appInfoRepository.findByAppkey(appInfo.getAppkey()) != null) {
-			errors.rejectValue("appkey", "unique", "重复的应用键");
-			return null;
-		}
-    }
-}
-```
-
-控制器(controller)：
-
-```java
-	@PostMapping("/app/add.action")
-	public String addSubmit(@Validated AddAppForm addAppForm, BindingResult errors, Model model) {
-		if (errors.hasErrors()) {
-			return "app/add";
-		}
-
-		this.appInfoLogic.add(this.createAppInfo(addAppForm), errors);
-		if (errors.hasErrors()) {
-			return "app/add";
-		}
-		return "app/add_success";
+	public User login(String loginName, String password) {
+		User user = this.userRepository.findByLoginName(loginName);
+		BusinessAssert.notNull(user, "loginName.notExist", "用户名不存在.");
+		BusinessAssert.isTrue(user.isValid(), "loginName.invalid", "无效的用户.");
+		String inputPasswordDigst = this.dataDigest.digestString((loginName + password + this.salt).getBytes());
+		BusinessAssert.equals(user.getPassword(), inputPasswordDigst, "password.inputError", "密码错误.");
+		this.logLogic.addLog(user, LogInfo.TYPE.LOGIN, "login", "loginName=" + loginName, String.valueOf(user.getId()));
+		return user;
 	}
+
+}
 ```
 
 ##### 事务操作
 
 参见：spring-boot respository的事务章节。
 
-#### properties(属性配置包)
+#### 2.2.4 Domain
+
+一个模块内的domain放到同一个domain包下，Domain类的属性都应该是私有(private)并且通过GetSet方法来访问，并且要实现equals、hashcode和toString()方法。equals和hashcode方法应该使用自然键属性(唯一属性,但不是主键)，如果没有的可以使用主键属性，但要注意，在new一个domain对象并且没save的时候主键是null的。
+
+例如：
+
+```java
+@Entity
+@Table(name = "APP_INFO")
+public class AppInfo {
+	/** 编码 */
+	@Id
+	@GeneratedValue(generator = "gen_increment")
+	@GenericGenerator(name = "gen_increment", strategy = "increment")
+	@Column
+	private Long id;
+	/** app键值 */
+	@Column
+	private String appkey;
+	/** 秘钥 */
+	@Column
+	private String secret;
+	/** 名称 */
+	@Column
+	private String name;
+	/** 日请求流量限制 */
+	@Column(name = "day_req_num_limit")
+	private Integer dayReqNumLimit;
+	/** 有效性 */
+	@Column
+	private Boolean valid;
+	/** 创建时间 */
+	@Column(name = "created_time")
+	private Date createdTime;
+	/** 修改时间 */
+	@Column(name = "updated_time")
+	private Date updatedTime;
+
+	public boolean isValidApp() {
+		return this.valid != null && this.valid;
+	}
+
+	@Override
+	public String toString() {
+		return "AppInfo [id=" + id + ", appkey=" + appkey + ", secret=" + secret + ", name=" + name	+ ", dayReqNumLimit=" + dayReqNumLimit + ", valid=" + valid + ", createdTime=" + createdTime + ", updatedTime=" + updatedTime + "]";
+	}
+
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + ((id == null) ? 0 : id.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		AppInfo other = (AppInfo) obj;
+		if (id == null) {
+			if (other.id != null)
+				return false;
+		} else if (!id.equals(other.id))
+			return false;
+		return true;
+	}
+
+	public AppInfo copy() {
+		AppInfo appInfo = new AppInfo();
+		appInfo.id = this.id;
+		appInfo.appkey = this.appkey;
+		appInfo.secret = this.secret;
+		appInfo.name = this.name;
+		appInfo.dayReqNumLimit = dayReqNumLimit;
+		appInfo.valid = this.valid;
+		appInfo.createdTime = this.createdTime;
+		appInfo.updatedTime = this.updatedTime;
+		return appInfo;
+	}
+
+	public Long getId() {
+		return id;
+	}
+
+	public void setId(Long id) {
+		this.id = id;
+	}
+
+	public String getAppkey() {
+		return appkey;
+	}
+
+	public void setAppkey(String appkey) {
+		this.appkey = appkey;
+	}
+
+	public String getSecret() {
+		return secret;
+	}
+
+	public void setSecret(String secret) {
+		this.secret = secret;
+	}
+
+	public String getName() {
+		return name;
+	}
+
+	public void setName(String name) {
+		this.name = name;
+	}
+
+	public Integer getDayReqNumLimit() {
+		return dayReqNumLimit;
+	}
+
+	public void setDayReqNumLimit(Integer dayReqNumLimit) {
+		this.dayReqNumLimit = dayReqNumLimit;
+	}
+
+	public Boolean getValid() {
+		return valid;
+	}
+
+	public void setValid(Boolean valid) {
+		this.valid = valid;
+	}
+
+	public Date getCreatedTime() {
+		return createdTime;
+	}
+
+	public void setCreatedTime(Date createdTime) {
+		this.createdTime = createdTime;
+	}
+
+	public Date getUpdatedTime() {
+		return updatedTime;
+	}
+
+	public void setUpdatedTime(Date updatedTime) {
+		this.updatedTime = updatedTime;
+	}
+
+}
+```
+
+#### 2.2.5 repository(数据访问类)
+
+参见 “spring boot repository 文档”。
+
+#### 2.2.6 properties(属性配置包)
 
 设计为层次结构，不同的层次对于的不同的配置类，例如：下面的security属性(SecurityProperties)是安全配置类，其定义为总配置类内的一个属性。
 
@@ -513,9 +662,28 @@ sgwm:
       - "/logout.html"    
 ```
 
-#### viewResolver(视图解析器)
+#### 2.2.7 MvcConfigurer
 
-##### velocity
+对项目的Spring mvc框架使用的组件(bean)进行配置，例如：加入了一个拦截器
+
+```java
+@Configuration
+public class MvcConfigurer implements WebMvcConfigurer {
+
+	@Autowired
+	private SecurityInterceptor securityInterceptor;
+
+	@Override
+	public void addInterceptors(InterceptorRegistry registry) {
+		InterceptorRegistration userRegistration = registry.addInterceptor(this.securityInterceptor);
+		userRegistration.addPathPatterns("/**/*.action");
+	}
+	
+}
+
+```
+
+##### velocityResolver(velocity视图)
 
 velocity视图可以参加：spring boot velocity 项目的README.md文档。
 
@@ -541,7 +709,94 @@ public class SgwManagerApplication {
 }
 ```
 
-### 1.3 src/main/resources
+#### 2.2.8 ControllerExceptionAdvice
+
+Controller(MVC)的全局异常处理器，对指定的异常进行处理，例如：
+
+这是一个异常兜底拦截，对Throwable异常进行界面友好的可视化处理,并且记录日志。这里类以及集成到了Z1框架中，你只需要在你的项目中@Bean这个类，并且创建/error/exception页面就可以了。
+
+```java
+package z1.exception.spring.web.controller;
+
+@ControllerAdvice(annotations = Controller.class)
+public class ControllerExceptionAdvice {
+	
+	private static final Logger logger = LoggerFactory.getLogger(ControllerExceptionAdvice.class);
+
+	@ExceptionHandler(Throwable.class)
+	public String throwableHandle(Throwable tx, Model model) {
+		logger.error("系统异常",tx);
+		model.addAttribute("exception", tx);
+		return "/error/exception";
+	}
+
+}
+```
+
+#### 2.2.9 BeanConfiguration
+
+整个项目的Bean配置类，内部都是@Bean声明的方法，用于创建项目的使用spring bean，例如：RestTemplate、RedisTemplate等，例如：
+
+```java
+@Configuration
+public class BeanConfiguration {
+
+	@Bean
+	public DataDigest dataDigest() {
+		return new SHA256();
+	}
+
+	@Bean
+	public Encryptor encryptor() {
+		return new AES("xxxx");
+	}
+
+	@Bean
+	public Session session() {
+		return new HttpServletSession();
+	}
+
+}
+```
+
+#### 2.2.10 XxxYyyyyApplication
+
+spring boot 应用启动类，例如：SgwManagerApplication
+
+```java
+@SpringBootApplication
+@EnableJpaRepositories
+@EnableTransactionManagement
+@EnableViewVelocity
+public class SgwManagerApplication {
+	
+	public static void main(String[] args) {
+		SpringApplication.run(SgwManagerApplication.class, args);
+	}
+}
+```
+
+
+
+```java
+@SpringBootApplication  # spring boot应用启动源注释
+```
+
+```
+@EnableJpaRepositories  # 开启jpa
+```
+
+```
+@EnableTransactionManagement # 开启事务
+```
+
+```
+@EnableViewVelocity # 使用velocity,自定义，参加"2.2.7 MvcConfigurer的velcity视图配置"
+```
+
+
+
+### 2.2 src/main/resources
 
 src/main/resource
 
@@ -558,6 +813,98 @@ application-dev.yml 开发环境配置文件
 application-test.yml 测试环境配置文件
 
 application-proc.yml 生产环境配置文件
+
+
+
+## 2.RestController(Service)
+
+### Z1Service
+
+基于z1框架依托Spring的RestController提供了服务化(Z1Service)，实现了服务化的服务端，而且对程序无侵入性，客户端你可以基于RestTemplate调用。
+
+#### @Z1Service + @RestController
+
+在@RestController声明的类上加入@Z1Service源注释，标记当前这个RestController是z1框架的服务。
+
+```
+
+```
+
+#### @GetMapping(获取数据服务)
+
+```java
+
+```
+
+#### @PostMapping(提交数据服务)
+
+
+
+#### 服务返回值处理
+
+
+
+#### 服务异常统一处理
+
+#### Form(表单)
+
+完全同"1.2 "
+
+#### Logic(业务类)
+
+
+
+##### 序列化和反序列化
+
+你可以通过调试WebMvcConfigurationSupport类的getMessageConverters()方法,来查看当前使用的转换器(HttpMessageConverter)。排在前面的转换器优先会执行。
+
+org.springframework.web.servlet.config.annotation.WebMvcConfigurationSupport
+
+```java
+	protected final List<HttpMessageConverter<?>> getMessageConverters() {
+		if (this.messageConverters == null) {
+			this.messageConverters = new ArrayList<>();
+			configureMessageConverters(this.messageConverters);  # 重写方法1
+			if (this.messageConverters.isEmpty()) { #注意:如果你重写类方法1,则下面的添加默认转换器不会执行了。
+				addDefaultHttpMessageConverters(this.messageConverters);
+			}
+			extendMessageConverters(this.messageConverters);  # 重写访问2
+		}
+		return this.messageConverters;
+	}
+```
+
+正常情况下，你额可以通过重写两个方法来实现转换器注入，重写方法：
+
+如果重写这个方法，则添加默认转换器的addDefaultHttpMessageConverters方法就不会执行了。
+
+```java
+	protected void configureMessageConverters(List<HttpMessageConverter<?>> converters) {
+	}
+
+```
+
+如果重写这个方法，则可以添加转换器，但添加在了默认的转换器的后面，会被最后选择执行。
+
+```java
+	protected void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
+	}
+```
+
+##### 输出一个图片或文件
+
+1.源注释@RequestMapping配置consumes属性，指定输出文件的类型(content-type)，例如：这里配置为了输出PNG类型。
+
+2.返回值为Resource类型，然后你实例化一个Resource的实现类，例如：这里创建了FileSystemResource对象，spring会使用ResourceHttpMessageConverter转换器来输出。
+
+```java
+	@RequestMapping(value = "/testResource", consumes = MediaType.ALL_VALUE,produces = MediaType.IMAGE_PNG_VALUE)
+	public Resource testResource(@RequestParam int a) {
+		return new FileSystemResource("C:\\Users\\Administrator\\Desktop\\重要\\T_SERVICE_LOG.png");
+	}
+```
+
+
 
 ## 2.安装部署
 
