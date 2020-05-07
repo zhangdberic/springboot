@@ -144,19 +144,70 @@ public class SecurityLogic {
 
 ### 3.1 id生成器
 
-#### increment生成器
+#### jpa原生生成器
 
-increment生成器，默认情况下jpa是不提供的，这里使用了hibernate的原生实现。
+#### hibernate原生生成器
 
-@GeneratedValue(generator="gen_increment")的generator指定了要生成器，和@GenericGenerator(name="gen_increment", strategy = "increment")的name属性一一对应，strategy属性指定了使用的策略，这里为increment。
+在主键field上加入，如下源注释：
 
 ```java
 	@Id
-	@GeneratedValue(generator="gen_increment")
-	@GenericGenerator(name="gen_increment", strategy = "increment")
+	@GeneratedValue(generator="使用的生成器名称")
+	@GenericGenerator(name="生成器名称", strategy = "生成器策略")
 	@Column
 	private Long id;
 ```
+
+@GeneratedValue的generator属性值和@GenericGenerato的name属性值是一一对应的，解释为@GeneratedValue指定了要是用那个生成器。
+
+@GenericGenerator指定了要使用的生成器策略，hibernate提供了，如下：
+
+```
+	uuid
+    hilo
+    assigned 
+    identity  
+    select
+    sequence
+    seqhilo
+    increment
+    foreign
+    guid
+    uuid.hex
+    sequence-identity
+```
+
+
+
+##### increment生成器
+
+生成器会自动执行sql：select max(id) from table；然后id+1来设置这个id字段。高并发的时候不应使用。
+
+```java
+	@Id
+	@GeneratedValue(generator="increment_generator")
+	@GenericGenerator(name="increment_generator", strategy = "increment")
+	@Column
+	private Long id;
+```
+
+##### assigned生成器
+
+程序来设置这个id值，例如：程序使用uuid来设置这个id值。
+
+```java
+	@Id
+	@GeneratedValue(generator = "assigned_generator")    
+	@GenericGenerator(name = "assigned_generator", strategy = "assigned") 
+	@Column(name="log_id")
+	private String logId;
+```
+
+
+
+
+
+
 
 #### ManyToOne(多对一)
 

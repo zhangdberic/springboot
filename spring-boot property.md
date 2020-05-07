@@ -552,6 +552,19 @@ management:
 
 
 
+# 6. @Value
+
+## 默认值
+
+如果没有外部配置属性，则使用定义的默认值，@Value("${配置属性key:默认值}")，冒号后面的就是这个属性的默认值。例如：someKey默认值为true
+
+```java
+@Value("${some.key:true}")
+private boolean someKey;
+```
+
+
+
 
 
 # 好文章
