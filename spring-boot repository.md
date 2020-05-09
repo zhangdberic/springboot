@@ -78,11 +78,17 @@ public class SgwManagerApplication {
 }
 ```
 
+#### @EntityScan
+
 @EntityScan 扫描@Entity，这个源注释不是必须的，你可以通过@EntityScan({"xxx.yyy.zzz"})扫描指定包位置下的@Entity标注类，默认扫描当前类所在的包和子包；
+
+#### @EnableJpaRepositories 
 
 @EnableJpaRepositories 扫描JpaRepository，你可以通过@EnableJpaRepositories({"xxx.yyy.zzz"})指定扫描的某个包位置下的JpaRepository类型接口，默认扫描为当前类所在的包和子包；
 
 你可以通过@EntityScan和@EnableJpaRepositories设置扫描包位置，来扫描和加载某个jar(类路径)下的@Entity和JpaRepository，但不建议这样，建议在**这个jar的某个类上声明@EntityScan和@EnableJpaRepositories**，然后使用@Import导入这个类，这样就会优雅的扫描和加载了。具体可以看Z1的BusinessLogBeanConfiguration类，其上声明了@EntityScan和@EnableJpaRepositories；
+
+#### @EnableTransactionManagement 
 
 @EnableTransactionManagement 开启事务；
 
@@ -131,18 +137,23 @@ public interface UserRepository extends JpaRepository<User, Long> {
 @Service
 @Transactional
 public class SecurityLogic {
+	/**　计算摘要的盐　*/
+	private String salt = "xxxx";
+
+	@Autowired
+	private DataDigest dataDigest;
+
 	@Autowired
 	private UserRepository userRepository;
-    
-	public User login(String loginName, String password, Errors errors) {
+
+	public User login(String loginName, String password) {
 		User user = this.userRepository.findByLoginName(loginName);
-		if (user == null) {
-			errors.rejectValue("loginName", "notExist", "用户名不存在.");
-			return null;
-		}
+		BusinessAssert.notNull(user, "loginName.notExist", "用户名不存在.");
+		BusinessAssert.isTrue(user.isValid(), "loginName.invalid", "无效的用户.");
+		String inputPasswordDigst = this.dataDigest.digestString((loginName + password + this.salt).getBytes());
+		BusinessAssert.equals(user.getPassword(), inputPasswordDigst, "password.inputError", "密码错误.");
 		return user;
 	}
-}
 ```
 
 ## 3.ORM
