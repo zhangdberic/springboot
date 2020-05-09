@@ -67,6 +67,7 @@ public class OracleDialect extends Oracle10gDialect {
 
 ```java
 @SpringBootApplication
+@EntityScan
 @EnableJpaRepositories
 @EnableTransactionManagement
 public class SgwManagerApplication {
@@ -77,9 +78,13 @@ public class SgwManagerApplication {
 }
 ```
 
-@EnableJpaRepositories 开启JpaRepository
+@EntityScan 扫描@Entity，这个源注释不是必须的，你可以通过@EntityScan({"xxx.yyy.zzz"})扫描指定包位置下的@Entity标注类，默认扫描当前类所在的包和子包；
 
-@EnableTransactionManagement 开启事务
+@EnableJpaRepositories 扫描JpaRepository，你可以通过@EnableJpaRepositories({"xxx.yyy.zzz"})指定扫描的某个包位置下的JpaRepository类型接口，默认扫描为当前类所在的包和子包；
+
+你可以通过@EntityScan和@EnableJpaRepositories设置扫描包位置，来扫描和加载某个jar(类路径)下的@Entity和JpaRepository，但不建议这样，建议在**这个jar的某个类上声明@EntityScan和@EnableJpaRepositories**，然后使用@Import导入这个类，这样就会优雅的扫描和加载了。具体可以看Z1的BusinessLogBeanConfiguration类，其上声明了@EntityScan和@EnableJpaRepositories；
+
+@EnableTransactionManagement 开启事务；
 
 ## 2.代码部分
 
@@ -112,7 +117,7 @@ public class User {
 
 ### 2.2 创建JpaRepository接口(UserRepository)
 
-继承JpaRepository接口，spring jpa容器会自动实现这个接口并实例化。
+继承JpaRepository接口，无需声明为@Repository，Application.java的@EnableJpaRepositories的源注释会自动扫描当前包和子包下JpaRepository类型的接口，
 
 ```java
 public interface UserRepository extends JpaRepository<User, Long> {
@@ -177,7 +182,37 @@ public class SecurityLogic {
     sequence-identity
 ```
 
+对于的生成器java类
 
+```java
+static {  
+
+  GENERATORS.put("uuid", UUIDHexGenerator.class);  
+
+  GENERATORS.put("hilo", TableHiLoGenerator.class);  
+
+  GENERATORS.put("assigned", Assigned.class);  
+
+  GENERATORS.put("identity", IdentityGenerator.class);  
+
+  GENERATORS.put("select", SelectGenerator.class);  
+
+  GENERATORS.put("sequence", SequenceGenerator.class);  
+
+  GENERATORS.put("seqhilo", SequenceHiLoGenerator.class);  
+
+  GENERATORS.put("increment", IncrementGenerator.class);  
+
+  GENERATORS.put("foreign", ForeignGenerator.class);  
+
+  GENERATORS.put("guid", GUIDGenerator.class);  
+
+  GENERATORS.put("uuid.hex", UUIDHexGenerator.class); //uuid.hex is deprecated  
+
+  GENERATORS.put("sequence-identity", SequenceIdentityGenerator.class);  
+
+} 
+```
 
 ##### increment生成器
 
@@ -187,11 +222,12 @@ public class SecurityLogic {
 	@Id
 	@GeneratedValue(generator="increment_generator")
 	@GenericGenerator(name="increment_generator", strategy = "increment")
-	@Column
 	private Long id;
 ```
 
 ##### assigned生成器
+
+**不建议使用**,因为会先产生一条select语句，具体见“"4.6 save(Entity)"介绍。
 
 程序来设置这个id值，例如：程序使用uuid来设置这个id值。
 
@@ -203,9 +239,25 @@ public class SecurityLogic {
 	private String logId;
 ```
 
+##### 自定义Id生成器
 
+```java
+public class JdkUUIDGenerator implements IdentifierGenerator {
 
+	@Override
+	public Serializable generate(SharedSessionContractImplementor session, Object object) throws HibernateException {
+		String uuid =  UUID.randomUUID().toString().replaceAll("-", "");
+		return uuid;
+	}
 
+}
+```
+
+```java
+@Id
+@GeneratedValue(generator = "jdkuuid_generator")
+@GenericGenerator(name = "jdkuuid_generator", strategy = "z1.util.hibernate.idgenerator.JdkUUIDGenerator")
+```
 
 
 
@@ -228,6 +280,16 @@ public class SecurityLogic {
 
     @Temporal(TemporalType.TIMESTAMP)
     private Date createTime;
+```
+
+#### @Entity
+
+##### 动态插入(DynamicInsert)和动态更新(@DynamicUpdate)
+
+```java
+@Entity
+@DynamicInsert
+@DynamicUpdate
 ```
 
 
@@ -376,6 +438,23 @@ CONTAINING (case-insensitive)    LOWER(firstname) like ‘%’ + LOWER(?0) + ‘
 
 #### 4.5.2 基于Specification实现
 
+### 4.6 save(Entity)
+
+spring data jpa的save方法比较特殊，如果你的entity中@Id标注的属性值不为null(有值)，则理解为merge合并，这样就会先产生一个select语句，这个语句是由merge方法触发的，这里就有一个问题，如果你的Id生成策略是assigned(有外部程序来设置id值)，就一定会走merge方法，也就是一定要先产生一个select语句。
+
+```java
+	@Transactional
+	public <S extends T> S save(S entity) {
+
+		if (entityInformation.isNew(entity)) {
+			em.persist(entity);
+			return entity;
+		} else {
+			return em.merge(entity);
+		}
+	}
+```
+
 
 
 ## 5.事务(Transaction)
@@ -455,7 +534,7 @@ public interface ServiceTypeRepository extends JpaRepository<ServiceType, Long> 
 
 Caused by: org.springframework.data.mapping.PropertyReferenceException: No property getServiceTypesTree found for type ServiceType!
 
-再有，这个类无须使用@Component来声明。
+再有，这个类无须使用@Component来声明。EntityManager类型实例em，使用@PersistenceContext源注释声明。
 
 spring jpa容器启动的时候，会把JpaRepository接口方法(jpa容器自动实现)和ServiceTypeEmRepository(手工方法)结合。
 
@@ -465,24 +544,22 @@ public class ServiceTypeRepositoryImpl implements ServiceTypeEmRepository {
 	@PersistenceContext
 	private EntityManager em;
 
-	@SuppressWarnings("unchecked")
 	@Override
 	public List<ServiceType> getServiceTypesTree(String condition) {
-		String sql = "select t.id,substr(sys_connect_by_path(t.name,'/'),2) as name,t.sortcode,t.valid from SERVICE_TYPE t "
+		String sql = "select t.id,substr(sys_connect_by_path(t.name,'/'),2) as name,t.sortcode,t.valid as valid from SERVICE_TYPE t "
 				+ (StringUtils.hasLength(condition) ? condition : "")
 				+ " start with t.id=1 connect by prior t.id = t.parent_id ORDER SIBLINGS BY t.sortcode";
-		Query query = em.createNativeQuery(sql);
-		SQLQuery sqlLQuery = query.unwrap(SQLQuery.class);
-		sqlLQuery.addScalar("id", LongType.INSTANCE);
-		sqlLQuery.addScalar("name", StringType.INSTANCE);
-		sqlLQuery.addScalar("sortcode", BigDecimalType.INSTANCE);
-		sqlLQuery.addScalar("valid", BooleanType.INSTANCE);
-		sqlLQuery
-				.setResultTransformer(new AliasToBeanConstructorResultTransformer(
-						org.springframework.util.ClassUtils.getConstructorIfAvailable(ServiceType.class, Long.class,
-								String.class, BigDecimal.class, Boolean.class)));
-		return query.getResultList();
+		SqlResultTransformer<ServiceType> sqlResultTransformer = new SqlResultTransformer<ServiceType>();
+		sqlResultTransformer.addScalar("id", LongType.INSTANCE);
+		sqlResultTransformer.addScalar("name", StringType.INSTANCE);
+		sqlResultTransformer.addScalar("sortcode", BigDecimalType.INSTANCE);
+		sqlResultTransformer.addScalar("valid", BooleanType.INSTANCE);
+		sqlResultTransformer.buildConstructorResultTransformer(ServiceType.class, Long.class,
+						String.class, BigDecimal.class, Boolean.class);
+		return new JpaHibernateSqlTemplate<ServiceType>(this.em).findByNamedParams(sql, (String[]) null,
+				(Object[]) null, sqlResultTransformer);
 	}
+
 
 }
 ```
@@ -493,24 +570,22 @@ Spring JPA的底层实现是Hibernate，有的时候需要直接操作底层，�
 
 ```java
 	public List<ServiceType> getServiceTypesTree(String condition) {
-		String sql = "select t.id,substr(sys_connect_by_path(t.name,'/'),2) as name,t.sortcode,t.valid from SERVICE_TYPE t "
+		String sql = "select t.id,substr(sys_connect_by_path(t.name,'/'),2) as name,t.sortcode,t.valid as valid from SERVICE_TYPE t "
 				+ (StringUtils.hasLength(condition) ? condition : "")
 				+ " start with t.id=1 connect by prior t.id = t.parent_id ORDER SIBLINGS BY t.sortcode";
-		Query query = em.createNativeQuery(sql);
-		SQLQuery sqlLQuery = query.unwrap(SQLQuery.class);
-		sqlLQuery.addScalar("id", LongType.INSTANCE);
-		sqlLQuery.addScalar("name", StringType.INSTANCE);
-		sqlLQuery.addScalar("sortcode", BigDecimalType.INSTANCE);
-		sqlLQuery.addScalar("valid", BooleanType.INSTANCE);
-		sqlLQuery
-				.setResultTransformer(new AliasToBeanConstructorResultTransformer(
-						org.springframework.util.ClassUtils.getConstructorIfAvailable(ServiceType.class, Long.class,
-								String.class, BigDecimal.class, Boolean.class)));
-		return query.getResultList();
+		SqlResultTransformer<ServiceType> sqlResultTransformer = new SqlResultTransformer<ServiceType>();
+		sqlResultTransformer.addScalar("id", LongType.INSTANCE);
+		sqlResultTransformer.addScalar("name", StringType.INSTANCE);
+		sqlResultTransformer.addScalar("sortcode", BigDecimalType.INSTANCE);
+		sqlResultTransformer.addScalar("valid", BooleanType.INSTANCE);
+		sqlResultTransformer.buildConstructorResultTransformer(ServiceType.class, Long.class,
+						String.class, BigDecimal.class, Boolean.class);
+		return new JpaHibernateSqlTemplate<ServiceType>(this.em).findByNamedParams(sql, (String[]) null,
+				(Object[]) null, sqlResultTransformer);
 	}
 ```
 
-如果不使用addScalar指定映射的类型，就会报错如下：
+如果不使用addScalar指定映射的类型，可以能会报错类型错误等。
 
 ## 5.FAQ
 
