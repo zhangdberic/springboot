@@ -563,9 +563,22 @@ management:
 private boolean someKey;
 ```
 
+如果默认值设为空，也将会被设置成默认值。
 
+```java
+@Value("${some.key:}")
+private String stringWithBlankDefaultValue;
+```
 
+数组的默认值可以使用逗号分割。
 
+```java
+@Value("${some.key:one,two,three}")
+private String[] stringArrayWithDefaults;
+ 
+@Value("${some.key:1,2,3}")
+private int[] intArrayWithDefaults;
+```
 
 # 好文章
 
