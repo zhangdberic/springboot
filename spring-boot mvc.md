@@ -229,6 +229,111 @@ public class MvcConfigurer extends WebMvcConfigurerAdapter {
 }
 ```
 
+##### 过滤器(filter)
+
+###### FilterRegistrationBean方式
+
+如果你的过滤器需要灵活的配置，例如：你写的过滤器是一个组件，供其他项目调研，则使用FilterRegistrationBean方式。
+
+```java
+@Configuration
+@ConditionalOnProperty(value = "z1.web.filter.httpRequestDebug.enabled", havingValue = "true")
+public class BeanConfiguration {
+
+	@Value("${zw.web.filter.httpRequestDebug.name:httpRequestDebugFilter}")
+	private String name;
+
+	@Value("${zw.web.filter.httpRequestDebug.order:1}")
+	private int order;
+
+	@Value("${z1.web.filter.httpRequestDebug.urlPatterns:*.jsp,*.action,*.do}")
+	private String[] urlPatterns;
+
+	@Bean
+	public FilterRegistrationBean<HttpRequestDebugFilter> filterRegistrationBean() {
+		FilterRegistrationBean<HttpRequestDebugFilter> bean = new FilterRegistrationBean<>(
+				new HttpRequestDebugFilter());
+		bean.setName(this.name);
+		bean.setOrder(this.order);
+		bean.addUrlPatterns(this.urlPatterns);
+		return bean;
+	}
+
+}
+
+```
+
+```java
+public class HttpRequestDebugFilter extends OncePerRequestFilter {
+	
+	private static final Logger logger = LoggerFactory.getLogger(HttpRequestDebugFilter.class);
+
+	@Override
+	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+			throws ServletException, IOException {
+		String debug = request.getParameter("debug");
+		if("true".equalsIgnoreCase(debug)) {
+			System.out.println(request);
+			System.out.println(response);
+		}
+		filterChain.doFilter(request, response);
+	}
+
+}
+```
+
+###### @WebFilter方式
+
+如果你写的过滤器，是为本项目使用，建议基于@WebFilter方式创建。
+
+```java
+@WebFilter(filterName = "test", urlPatterns = "/success/*")
+public class UrlFilter implements Filter {
+ 
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {
+ 
+        System.out.println("----------------------->过滤器被创建");
+    }
+ 
+    @Override
+    public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
+ 
+        HttpServletRequest req = (HttpServletRequest) servletRequest;
+        String requestURI = req.getRequestURI();
+        System.out.println("--------------------->过滤器：请求地址"+requestURI);
+        if(!requestURI.contains("info")){
+            servletRequest.getRequestDispatcher("/failed").forward(servletRequest, servletResponse);
+        }else{
+            filterChain.doFilter(servletRequest, servletResponse);
+        }
+    }
+ 
+    @Override
+    public void destroy() {
+ 
+        System.out.println("----------------------->过滤器被销毁");
+    }
+}
+
+```
+
+需要加入@ServletComponentScan源注释
+
+```java
+@SpringBootApplication
+@ServletComponentScan
+public class Application {
+	
+	public static void main(String[] args) {
+		SpringApplication.run(Application.class, args);
+	}
+}
+
+```
+
+
+
 #### 2.2.2 Form(表单)
 
 form对象有一个原则，form对象不应与domain对象有任何关联，例如：不应继承于domain对象，也不能使用domain对象作为属性等，这样可以减少耦合性，让form对象和domain对象各司其职。
