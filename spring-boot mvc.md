@@ -68,7 +68,19 @@ public class LoginController {
 }
 ```
 
+###### 请求参数
+
 如果有@PathVariable或者@RequestParam绑定，则参数类型不要使用基本类型，应该使用包装类型，例如：不要使用int类型的请求参数，应该使用Integer类型请求参数，否则在请求参数绑定**类型错误**的时候抛出的异常不同，基本类型(例如int)绑定类型异常抛出的是IllegalAgumentException，而包装类型(Integer)绑定类型异常错误抛出的是MethodArgumentTypeMismatchException，因为IllegalAgumentException异常太抽象了，java程序任何位置都可以抛出IllegalAgumentException异常，异常处理程序无法准确的失败抛出异常的原因，而MethodArgumentTypeMismatchException明确是web请求参数绑定类型匹配异常，处理处理程序可以准确的处理。**例如，参数应该是Integer Id，不应该是int id**。
+
+###### @DateTimeFormat
+
+日期类型请求参数绑定
+
+```
+@RequestParam @DateTimeFormat(pattern="yyyy-MM-dd HH:mm:ss") Date birthDay
+```
+
+
 
 ```java
 	@GetMapping(value = "/z1/service/demo/get", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
@@ -350,6 +362,20 @@ public class Application {
 }
 
 ```
+
+##### RequestContextHolder
+
+spring web 会自动注册RequestContextFilter的spring bean，其会把请求HttpServletRequest和HttpServletResponse对象存放到线程变量中。
+
+你可以在请求流程经过的任何地方，调用如下代码，获取请求和响应对象
+
+```java
+((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
+
+((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getResponse();
+```
+
+
 
 
 
@@ -1026,7 +1052,13 @@ public class ServiceReturnValueResponseBodyAdvice implements ResponseBodyAdvice<
 
 
 
-## 2.RestController(Service)
+## 2.RestController
+
+
+
+
+
+
 
 ### Z1Service
 
