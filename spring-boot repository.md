@@ -447,7 +447,34 @@ CONTAINING (case-sensitive)    firstname like ‘%’ + ?0 + ‘%’    模糊�
 CONTAINING (case-insensitive)    LOWER(firstname) like ‘%’ + LOWER(?0) + ‘%’    模糊查询（忽略大小写）
 ```
 
-#### 4.5.2 基于Specification实现
+#### 4.5.2 基于Z1框架的的实现
+
+```java
+	public Page<ServiceInfo> find(ServiceInfo serviceInfo, Integer pageNumber, Integer pageSize) {
+		Dynamic condition = Dynamic.whereBegin();
+		if (!ServiceType.ROOT_ID.equals(serviceInfo.getType().getId())) {
+			List<Long> typeIds = this.serviceTypeRepository
+					.getServiceTypeCurrentAndAllChildIds(serviceInfo.getType().getId());
+			condition.and(condition.in("s.type.id", typeIds));
+
+		}
+		if (StringUtils.hasText(serviceInfo.getCode())) {
+			condition.addSegment("and", "s.code like :code", "code", "%" + serviceInfo.getCode() + "%");
+		}
+		if (StringUtils.hasText(serviceInfo.getName())) {
+			condition.addSegment("and", "s.name like :name", "name", "%" + serviceInfo.getName() + "%");
+		}
+		if (StringUtils.hasText(serviceInfo.getLocation())) {
+			condition.addSegment("and", "s.location like :location", "location", "%" + serviceInfo.getLocation() + "%");
+		}
+		String cntHql = "select count(*) from ServiceInfo s #{ #dynamic}";
+		String hql = "from ServiceInfo s left join fetch s.type #{ #dynamic} order by s.type.id,s.sortcode";
+		return new JpaHibernateHqlTemplate<ServiceInfo>(this.em).findPageByDynamic(cntHql, hql, condition, pageNumber,
+				pageSize);
+	}
+```
+
+
 
 ### 4.6 save(Entity)
 
