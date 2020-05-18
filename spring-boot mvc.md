@@ -68,6 +68,25 @@ public class LoginController {
 }
 ```
 
+如果有@PathVariable或者@RequestParam绑定，则参数类型不要使用基本类型，应该使用包装类型，例如：不要使用int类型的请求参数，应该使用Integer类型请求参数，否则在请求参数绑定**类型错误**的时候抛出的异常不同，基本类型(例如int)绑定类型异常抛出的是IllegalAgumentException，而包装类型(Integer)绑定类型异常错误抛出的是MethodArgumentTypeMismatchException，因为IllegalAgumentException异常太抽象了，java程序任何位置都可以抛出IllegalAgumentException异常，异常处理程序无法准确的失败抛出异常的原因，而MethodArgumentTypeMismatchException明确是web请求参数绑定类型匹配异常，处理处理程序可以准确的处理。**例如，参数应该是Integer Id，不应该是int id**。
+
+```java
+	@GetMapping(value = "/z1/service/demo/get", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
+	public DemoData getDemoData(Integer id, @RequestParam(required = false) String name,
+			@RequestParam(required = false) Date birthDay, @RequestParam(required = false) boolean sex,
+			@RequestParam(required = false) BigDecimal wage) {
+		DemoData demoData = new DemoData();
+		demoData.setId(id);
+		demoData.setName(name);
+		demoData.setBirthDay(birthDay);
+		demoData.setSex(sex);
+		demoData.setWage(wage);
+		return demoData;
+	}
+```
+
+
+
 ##### @PostMapping方法
 
 **表单提交方法**：以XxxSubmit命令（例如：loginSubmit，提交登录操作），方法返回值是一个字符串(视图名)，参数：@Validated LoginForm loginForm页面表单项(请求参数)绑定的对象，@Validated源注释在绑定后会对参数进行有效性验证（具体下面介绍），BindingResult errors绑定失败错误对象，Model（用于存放model数据，页面显示使用），HttpSession session会话对象，可有可无根据实际业务情况定。
@@ -918,6 +937,92 @@ application-dev.yml 开发环境配置文件
 application-test.yml 测试环境配置文件
 
 application-proc.yml 生产环境配置文件
+
+
+
+
+
+### @ControllerAdvice
+
+#### @ControllerAdvice的annotations属性
+
+@ControllerAdvice的annotations属性值如果声明了多个，那么多个annotation是或(or)的关系，不是与(and)的关系，只要有一个annotation匹配上，ControllerAdvice就会运行。如果要使用and关系，则需要特殊处理，例如下面的Z1ServiceRestController源注释，其声明了@RestController，形成@RestController+Z1Service语义。
+
+```java
+@ControllerAdvice(annotations = { Z1ServiceRestController.class })
+public class ServiceExceptionAdvice {
+	@ExceptionHandler(Throwable.class)
+	@ResponseBody
+	public SystemErrorReturnValue throwableHandle(Throwable tx) {
+		return this.serviceExceptionHandler.throwableHandle(tx);
+	}
+}
+```
+
+```java
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@RestController
+public @interface Z1ServiceRestController {
+}
+```
+
+#### @ResponseBody
+
+如果要使用Rest方式处理异常返回值，则应该在异常处理方法上声明@ResponseBody，否则ControllerAdvice将使用默认的mvc方式输出异常信息到页面。
+
+```java
+@ControllerAdvice(annotations = { Z1ServiceRestController.class })
+public class ServiceExceptionAdvice {
+	@ExceptionHandler(Throwable.class)
+	@ResponseBody
+	public SystemErrorReturnValue throwableHandle(Throwable tx) {
+		return this.serviceExceptionHandler.throwableHandle(tx);
+	}
+}
+```
+
+#### ResponseBodyAdvice
+
+对rest返回的对象，进行拦截处理，例如：对RestController方法返回值(业务对象)进行包装，包装为服务返回值对象。
+
+```java
+@ControllerAdvice(annotations = { Z1ServiceRestController.class })
+public class ServiceReturnValueResponseBodyAdvice implements ResponseBodyAdvice<Object> {
+
+	@Override
+	public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
+		return true;
+	}
+
+	@Override
+	public Object beforeBodyWrite(Object body, MethodParameter returnType, MediaType selectedContentType,
+			Class<? extends HttpMessageConverter<?>> selectedConverterType, ServerHttpRequest request,
+			ServerHttpResponse response) {
+
+		if (body instanceof ErrorReturnValue) {
+			return body;
+		} else {
+			SuccessReturnValue successReturnValue = new SuccessReturnValue();
+			successReturnValue.setData(body);
+			return successReturnValue;
+		}
+
+	}
+
+}
+```
+
+### RequestBodyAdvice
+
+对rest请求对象，进行拦截处理，例如：只获取服务请求对象中data对象(业务对象)，传递给restcontroller方法的请求参数。
+
+```
+
+```
+
+
 
 
 
