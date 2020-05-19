@@ -35,8 +35,6 @@ public @interface ConditionalOnProperty {
 @ConditionalOnProperty(value = "z1.ssdb.pool.enabled", matchIfMissing = "false")
 ```
 
-
-
 ## 2.Class存在
 
 ```java
@@ -46,8 +44,57 @@ public @interface ConditionalOnProperty {
 ## 3.Spring Bean存在
 
 ```java
-@ConditionalOnBean(EurekaDiscoveryClientConfiguration.Marker.class)
+@ConditionalOnBean(RequestIdContext.class)
 ```
+
+@ConditionOnBean(xxx.class)和@Bean配合使用，如果xxx.class的spring bean存在，则条件成立。
+
+```java
+@ConditionalOnBean(RequestIdContext.class)
+@Bean
+public RequestIdContext requestIdContext(){
+   return new RequestIdContext();
+}
+```
+
+@ConditionOnBean(xxx.class)和@Component配合使用，如果xxx.class的spring bean存在，则条件成立。
+
+```java
+@Component
+@ConditionalOnBean(RequestIdContext.class)
+public class LogSetRequestIdListener implements ApplicationListener<LogEvent>,Ordered {
+	
+	@Autowired
+	private RequestIdContext requestIdContext;
+
+	@Override
+	public void onApplicationEvent(LogEvent event) {
+		event.getBusinessLogInfo().setRequestId(this.requestIdContext.get());
+	}
+
+	@Override
+	public int getOrder() {
+		return 2;
+	}
+
+}
+```
+
+@ConditionOnBean(xxx.class)和@Configuration配合使用，如果xxx.class的spring bean存在，则这个@Configuraion声明的类相关bean扫描(@ComponentScan)和bean(@Bean)加载有效。
+
+```java
+@Configuraion
+@ComponentScan
+@ConditionalOnBean(RequestIdContext.class)
+public class RequestIdBeanConfiguration{
+   @Bean
+   public RequestIdContext requestIdContext(){
+      return new RequestIdContext();
+   }
+}
+```
+
+
 
 ## 4.判断系统属性值
 

@@ -966,13 +966,17 @@ application-proc.yml 生产环境配置文件
 
 
 
-
-
 ### @ControllerAdvice
+
+对上一步的执行结果进行通知(拦截)处理。
+
+#### @ControllerAdvice属性(条件)
+
+@ControllerAdvice源注释提供了多个属性，如果使用(声明)了这些属性，就声明了某些**条件限制**，例如：@ControllerAdvice(annotations = { Z1ServiceRestController.class })限制了只对@Z1ServiceRestController声明的类执行进行通知(拦截)处理。如果没有声明任何属性，则对所有的执行结果进行通知(拦截)处理。
 
 #### @ControllerAdvice的annotations属性
 
-@ControllerAdvice的annotations属性值如果声明了多个，那么多个annotation是或(or)的关系，不是与(and)的关系，只要有一个annotation匹配上，ControllerAdvice就会运行。如果要使用and关系，则需要特殊处理，例如下面的Z1ServiceRestController源注释，其声明了@RestController，形成@RestController+Z1Service语义。
+@ControllerAdvice的annotations属性值如果声明了多个，那么多个annotation是或(or)的关系，不是与(and)的关系，只要有一个annotation匹配上，ControllerAdvice就会运行。如果要使用and关系，则需要特殊处理，例如下面的Z1ServiceRestController源注释(@Interface)java类，其声明了@RestController，形成@RestController+Z1Service的and语义。
 
 ```java
 @ControllerAdvice(annotations = { Z1ServiceRestController.class })
@@ -994,9 +998,13 @@ public @interface Z1ServiceRestController {
 }
 ```
 
+#### @RestControllerAdvice
+
+@ControllerAdvice+@ResponseBody的合体，意义同@RestController一样，是@Controller+@ResponseBody的合体。
+
 #### @ResponseBody
 
-如果要使用Rest方式处理异常返回值，则应该在异常处理方法上声明@ResponseBody，否则ControllerAdvice将使用默认的mvc方式输出异常信息到页面。
+如果你使用的是ControllerAdvice，并且要使用Rest方式处理异常返回值，则应该在异常处理方法上声明@ResponseBody，否则ControllerAdvice将使用默认的mvc方式输出异常信息到页面。你可以使用@RestControllerAdvice声明类，这样就无须@ReponseBody声明了。
 
 ```java
 @ControllerAdvice(annotations = { Z1ServiceRestController.class })
@@ -1011,11 +1019,14 @@ public class ServiceExceptionAdvice {
 
 #### ResponseBodyAdvice
 
-对rest返回的对象，进行拦截处理，例如：对RestController方法返回值(业务对象)进行包装，包装为服务返回值对象。
+对上一步的执行结果,响应输出前进行通知(拦截)处理，这里的上一步可以是RestController方法执行结果，也可以是上一个ControllerAdvice的执行结果(例如：异常通知(拦截)处理)，例如，下面例子annotations声明的annotations = { Z1ServiceRestController.class, ControllerAdvice.class}两个类型。
 
 ```java
-@ControllerAdvice(annotations = { Z1ServiceRestController.class })
+@ControllerAdvice(annotations = { Z1ServiceRestController.class, ControllerAdvice.class })
 public class ServiceReturnValueResponseBodyAdvice implements ResponseBodyAdvice<Object> {
+
+	@Autowired
+	private RequestIdContext requestIdContext;
 
 	@Override
 	public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
@@ -1027,10 +1038,15 @@ public class ServiceReturnValueResponseBodyAdvice implements ResponseBodyAdvice<
 			Class<? extends HttpMessageConverter<?>> selectedConverterType, ServerHttpRequest request,
 			ServerHttpResponse response) {
 
+		String requestId = this.requestIdContext.get();
 		if (body instanceof ErrorReturnValue) {
+			// 服务错误返回值,直接返回
+			((ErrorReturnValue) body).setRequestId(requestId);
 			return body;
 		} else {
+			// 包装返回业务对象到服务成功返回值
 			SuccessReturnValue successReturnValue = new SuccessReturnValue();
+			successReturnValue.setRequestId(requestId);
 			successReturnValue.setData(body);
 			return successReturnValue;
 		}
