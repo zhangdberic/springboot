@@ -70,13 +70,61 @@ public class SSDBPoolAutoConfiguration {
 
 注意这里不需要为SSDBPoolConfig声明为@Bean，@EnableConfigurationProperties(SSDBPoolConfig.class)源注释会自动让这个SSDBPoolConfig成为一个Spring Bean.
 
+**注意：**@EnableConfigurationProperties和@ConfigurationProperties和配对出现的，@EnableConfigurationProperties启动bean后缀处理，对所有标注@ConfigurationProperties的bean进行属性注入处理。
+
+## 开发公共组件的配置bean
+
+有些属性对象需要被复用，例如：一个SSDB配置属性类，其一个项目可以连接多个SSDB，则就需要多个SSDBProperties类，如果你还使用上面的方式(配置单个属性bean)就不对了，因此下面使用@bean方式来配置属性bean，例如：
+
+```java
+@Configuration
+@EnableConfigurationProperties
+public class SSDBBeanConfiguration {
+	
+	@Bean
+	@ConfigurationProperties(prefix = "z1.ssdb1")
+	public SSDBProperties ssdbProperties1() {
+		return new SSDBProperties();
+	}
+    
+	@Bean
+	@ConfigurationProperties(prefix = "z1.ssdb2")
+	public SSDBProperties ssdbProperties2() {
+		return new SSDBProperties();
+	}    
+}
+```
+
+```java
+@Validated
+public class SSDBProperties {
+
+	public static final String DEFAULT_CONFIG_PREFIX = "z1.ssdb";
+
+	/** ip地址 */
+	// @NotEmpty
+	private String ip;
+	/** 端口 */
+	private int port = 8888;
+	/** 超时(毫秒) */
+	private int timeout = 1000;
+	/** 密码 */
+	private String password;
+	/** 验证ssdb是否有效key */
+	private String validateSsdbKey = "poolTest";
+
+	/** 连接池属性 */
+	private GenericObjectPoolConfig<SSDB> pool = new GenericObjectPoolConfig<SSDB>();
+}
+```
 
 
-## 2.3 配置加密
+
+## 2.4 配置加密
 
 配置加密使用jasypt-spring-boot，github地址：https://github.com/ulisesbocchio/jasypt-spring-boot
 
-### 2.3.1 常用的属性加密
+### 2.4.1 常用的属性加密
 
 #### 加密程序
 
