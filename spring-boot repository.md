@@ -303,13 +303,26 @@ public class JdkUUIDGenerator implements IdentifierGenerator {
 @DynamicUpdate
 ```
 
+#### @PrePersist
+
+序列化前执行@PrePersiste源注释标注的方法
+
+```java
+private Date createdAt;
+
+@PrePersist
+void createdAt(){
+  this.createdAt = new Date();
+}
+```
+
 
 
 ## 4.JpaRepository
 
 ### 4.1 方法命名操作
 
-JpaRepository支持接口规范方法名查询。JPA引擎会根据方法命名自动生成对应的sql语句，目前支持的关键字如下：
+JpaRepository支持接口规范方法名查询(你只需要按照规范定义接口方法)。JPA引擎会根据方法命名自动生成对应的sql语句，repository方法是由一个动词、一个可选的主体(Subject)、关键词By和断言组成，例如：findById，动词find、主体没有指定使用JpaRepository<XXX>的XXX最为主体、by关键词，id为断言这里是Entity的一个属性。目前支持的关键字如下：
 
 **注意：适合不复杂的操作，命名不要过长。**
 
@@ -335,13 +348,45 @@ JpaRepository支持接口规范方法名查询。JPA引擎会根据方法命名�
 | After/Before | ...                    | ...                                                         |
 | IsNull       | findByAgeIsNull        | ...  where x.age is null                                    |
 
-**例如：**
+#### 查询唯一的实体
 
 ```java
 public interface UserRepository extends JpaRepository<User, Long> {
 	User findByLoginName(String loginName);
 }
 ```
+
+#### 查询一个时间段实体
+
+重点是between，指明了为一段时间内
+
+```java
+public interface UserRepository extends JpaRepository<User, Long> {
+	List<User> findByCreatedTimeBetween(Date startDate,Date endDate);
+}
+```
+
+#### And属性查询
+
+下面解释为：查询某个用户类型(type)在一段时间内(createdTime)的用户数据。
+
+```java
+public interface UserRepository extends JpaRepository<User, Long> {
+	List<User> findByTypeAndCreatedTimeBetween(String type,Date startDate,Date endDate);
+}
+```
+
+#### 排序Order
+
+方法名的OrderByXxxx指明了，使用Xxx属性值来排序。例如，下面使用CreatedTime来排序。
+
+```java
+public interface UserRepository extends JpaRepository<User, Long> {
+	List<User> findByCreatedTimeBetweenOrderByCreatedTime(Date startDate,Date endDate);
+}
+```
+
+
 
 ### 4.2 @Query
 
