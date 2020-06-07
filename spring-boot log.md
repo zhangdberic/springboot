@@ -12,7 +12,7 @@ spring boot默认使用logback的实现，并且提供了基本的日志输出�
 
 1.在src/main/resource创建spring-logback.xml文件，内容如下xml(通用)：
 
-2.设置jvm启动属性，-Dloghome=xxx，设置日志文件存放的目录，例如：$HOME/logs
+2.设置jvm启动属性，-Dloghome=xxx设置日志文件存放的目录，例如：$HOME/logs，默认会设置为程序运行位置的logs目录。
 
 ### xml配置说明
 
@@ -20,7 +20,7 @@ spring-logback.xml是logback.xml的springboot版本，其加入了springboot专�
 
 springProperty，可以获取到springboot的属性，例如下面的appname属性，其获取spring.application.name的spring boot属性值。
 
-springProfile，可以根据spring boot的spring.profiles.actives配置(当前运行环境)，来设置不同的日志输出配置。
+springProfile，可以根据spring boot的spring.profiles.actives配置(当前运行环境)，来设置不同的日志输出配置。相当于一个if判断语句。
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -28,6 +28,7 @@ springProfile，可以根据spring boot的spring.profiles.actives配置(当前�
 
 	<!-- 属性 -->
 	<springProperty scope="context" name="appname" source="spring.application.name" defaultValue="app"/>
+	<springProperty scope="context" name="loghome" source="logging.loghome" defaultValue="logs"/>
 
 	<!-- 控制台输出日志 -->
 	<appender name="console" class="ch.qos.logback.core.ConsoleAppender">
@@ -37,45 +38,50 @@ springProfile，可以根据spring boot的spring.profiles.actives配置(当前�
 		</encoder>
 	</appender>
 	
-	<!-- INFO级别日志输出到文件 -->
-	<appender name="infofile" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <!-- 日志还没滚动前存放的日志文件路径 -->
-		<file>${loghome}/${appname}_info.log</file>
-		<rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-			<!-- rollover daily -->
-			<fileNamePattern>${loghome}/${appname}_info.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
-			<!-- 单个日志文件最大50MB,超出则切换,文件保留180天,生成的总文件大小20G(超出后最旧的文件会被删除)-->
-			<maxFileSize>50MB</maxFileSize>
-			<maxHistory>180</maxHistory>
-			<totalSizeCap>20G</totalSizeCap>
-		</rollingPolicy>
-		<encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
-			<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} -%msg%n</pattern>
-			<charset>UTF-8</charset>
-		</encoder>
-	</appender>
+	<springProfile name="test,study,proc">
 	
-	<!-- ERROR级别日志输出到文件 -->
-	<appender name="errorfile" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <!-- 日志还没滚动前存放的日志文件路径 -->
-		<file>${loghome}/${appname}_error.log</file>
-		<rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-			<!-- rollover daily -->
-			<fileNamePattern>${loghome}/${appname}_error.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
-			<!-- 单个日志文件最大50MB,超出则切换,文件保留180天,生成的总文件大小20G(超出后最旧的文件会被删除)-->
-			<maxFileSize>50MB</maxFileSize>
-			<maxHistory>180</maxHistory>
-			<totalSizeCap>20GB</totalSizeCap>
-		</rollingPolicy>
-        <!-- 过滤日志，只输出error等级的日志-->
-        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-            <level>ERROR</level>
-        </filter>
-		<encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
-			<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} -%msg%n</pattern>
-			<charset>UTF-8</charset>
-		</encoder>
-	</appender>
+		<!-- INFO级别日志输出到文件 -->
+		<appender name="infofile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+			<!-- 当前日志文件 -->
+			<file>${loghome}/${appname}_info.log</file>
+			<rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+				<!-- 归档日志文件,文件名:例如:dy-config_info.2020-06-06.0.log -->
+				<fileNamePattern>${loghome}/${appname}_info.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+				<!-- 单个日志文件最大50MB,超出则切换,文件保留180天,生成的总文件大小20GB(超出后最旧的文件会被删除)-->
+				<maxFileSize>50MB</maxFileSize>
+				<maxHistory>180</maxHistory>
+				<totalSizeCap>20GB</totalSizeCap>
+			</rollingPolicy>
+			<encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+				<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} -%msg%n</pattern>
+				<charset>UTF-8</charset>
+			</encoder>
+		</appender>
+	
+		<!-- ERROR级别日志输出到文件 -->
+		<appender name="errorfile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+			<!-- 当前日志文件 -->
+			<file>${loghome}/${appname}_error.log</file>
+			<rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+				<!-- 归档日志文件,文件名:例如:dy-config_error.2020-06-06.0.log -->
+				<fileNamePattern>${loghome}/${appname}_error.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+				<!-- 单个日志文件最大50MB,超出则切换,文件保留180天,生成的总文件大小20GB(超出后最旧的文件会被删除)-->
+				<maxFileSize>50MB</maxFileSize>
+				<maxHistory>180</maxHistory>
+				<totalSizeCap>20GB</totalSizeCap>
+			</rollingPolicy>
+	        <!-- 过滤日志，只输出error等级的日志-->
+	        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+	            <level>ERROR</level>
+	        </filter>
+			<encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+				<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} -%msg%n</pattern>
+				<charset>UTF-8</charset>
+			</encoder>
+		</appender>
+				
+	</springProfile>
+
 
 	<!-- 开发环境 -->
 	<springProfile name="dev,default">
@@ -94,6 +100,7 @@ springProfile，可以根据spring boot的spring.profiles.actives配置(当前�
 	</springProfile>
 	
 </configuration>
+
 ```
 
 ### eclipse带颜色日志输出
