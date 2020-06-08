@@ -1,6 +1,6 @@
 # spring-boot 日志
 
-spring boot默认使用logback的实现，并且提供了基本的日志输出支持，你可以通过基于yaml的方式类配置log，但yaml只提供了基本的配置。
+spring boot默认使用logback的实现，你可以通过基于yaml的方式类配置log，但yaml只提供了基本的配置。
 
 ## yaml配置
 
@@ -10,9 +10,29 @@ spring boot默认使用logback的实现，并且提供了基本的日志输出�
 
 ### 使用
 
-1.在src/main/resource创建spring-logback.xml文件，内容如下xml(通用)：
+1.在bootstrap.yml文件中声明spring.application.name属性，不要在application.yml中声明否则日志文件名生成错误。
 
-2.设置jvm启动属性，-Dloghome=xxx设置日志文件存放的目录，例如：$HOME/logs，默认会设置为程序运行位置的logs目录。
+2.在src/main/resource创建spring-logback.xml文件，内容如下xml(通用)：
+
+3.设置jvm启动属性，-Dloghome=xxx设置日志文件存放的目录，例如：$HOME/logs，默认会设置为程序运行位置的logs目录。
+
+### 生成的文件名
+
+一共会生成4种日志：
+
+appname_info.log
+
+appname_error.log
+
+appname_info.yyyy-MM-dd.i.log
+
+appname_error.yyyy-MM-dd.i.log
+
+info字样是日志级别>=info的日志文件,error字样是日志级别>=error的日志文件.
+
+带日期的都是归档日志文件，不带日期的是当前正在使用的日志文件。
+
+归档日志文件，基于时间和文件大小生成滚动日志，格式为：dy-config_info.2020-06-06.0.log，dy-config为应用名称(spring.application.name)，.2020-06-06为日志生成日期，后名的0为序号(每天都从0开始)，默认一个日志文件的大小为50MB超出了则日志切换，序号加1。
 
 ### xml配置说明
 
@@ -27,9 +47,9 @@ springProfile，可以根据spring boot的spring.profiles.actives配置(当前�
 <configuration debug="false">
 
 	<!-- 属性 -->
-	<springProperty scope="context" name="appname" source="spring.application.name" defaultValue="app"/>
+	<springProperty scope="context" name="appname" source="spring.application.name" defaultValue="app" />
 	<springProperty scope="context" name="loghome" source="logging.loghome" defaultValue="logs"/>
-
+	
 	<!-- 控制台输出日志 -->
 	<appender name="console" class="ch.qos.logback.core.ConsoleAppender">
 		<encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
@@ -38,8 +58,7 @@ springProfile，可以根据spring boot的spring.profiles.actives配置(当前�
 		</encoder>
 	</appender>
 	
-	<springProfile name="test,study,proc">
-	
+	<springProfile name="!dev">
 		<!-- INFO级别日志输出到文件 -->
 		<appender name="infofile" class="ch.qos.logback.core.rolling.RollingFileAppender">
 			<!-- 当前日志文件 -->
@@ -57,7 +76,9 @@ springProfile，可以根据spring boot的spring.profiles.actives配置(当前�
 				<charset>UTF-8</charset>
 			</encoder>
 		</appender>
-	
+	</springProfile>
+
+	<springProfile name="!dev">
 		<!-- ERROR级别日志输出到文件 -->
 		<appender name="errorfile" class="ch.qos.logback.core.rolling.RollingFileAppender">
 			<!-- 当前日志文件 -->
@@ -79,21 +100,18 @@ springProfile，可以根据spring boot的spring.profiles.actives配置(当前�
 				<charset>UTF-8</charset>
 			</encoder>
 		</appender>
-				
 	</springProfile>
-
-
+				
 	<!-- 开发环境 -->
-	<springProfile name="dev,default">
+	<springProfile name="dev">
 		<root level="INFO">
 			<appender-ref ref="console"/>
 		</root>	
 	</springProfile>
 	
 	<!-- 测试、学习、生产环境 -->	
-	<springProfile name="test,study,proc">
+	<springProfile name="!dev">
 		<root level="INFO">
-			<appender-ref ref="console"/>
 			<appender-ref ref="infofile"/>
 			<appender-ref ref="errorfile"/>
 		</root>
