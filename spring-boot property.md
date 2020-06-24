@@ -102,7 +102,7 @@ public class SSDBProperties {
 	public static final String DEFAULT_CONFIG_PREFIX = "z1.ssdb";
 
 	/** ip地址 */
-	// @NotEmpty
+	@NotEmpty
 	private String ip;
 	/** 端口 */
 	private int port = 8888;
