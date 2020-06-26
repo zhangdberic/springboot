@@ -4,6 +4,21 @@ spring boot默认使用logback的实现，你可以通过基于yaml的方式类�
 
 ## yaml配置
 
+### SQL日志
+
+```yaml
+# 日志    
+logging:
+  level:
+    root: info
+    org.hibernate.SQL: debug
+    org.hibernate.type: trace
+    org.hibernate.type.BasicTypeRegistry: error
+    org.springframework.orm.jpa.JpaTransactionManager: debug      
+    z1.web.tool.debug: DEBUG
+
+```
+
 
 
 ## spring-logback.xml
@@ -137,4 +152,8 @@ spring:
     ansi:
       enabled: always
 ```
+
+### yaml配置优先级高于spring-logback.xml
+
+例如：yaml配置了debug级别的包和类，其优先级会高于spring-logback.xml配置。
 

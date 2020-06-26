@@ -176,53 +176,26 @@ public class SecurityLogic {
 
 @GeneratedValue的generator属性值和@GenericGenerato的name属性值是一一对应的，解释为@GeneratedValue指定了要是用那个生成器。
 
-@GenericGenerator指定了要使用的生成器策略，hibernate提供了，如下：
-
-```
-	uuid
-    hilo
-    assigned 
-    identity  
-    select
-    sequence
-    seqhilo
-    increment
-    foreign
-    guid
-    uuid.hex
-    sequence-identity
-```
-
-对于的生成器java类
+@GenericGenerator指定了要使用的生成器策略，hibernate提供了，如下**生成器策略**，对于的生成器java类。
 
 ```java
-static {  
-
-  GENERATORS.put("uuid", UUIDHexGenerator.class);  
-
-  GENERATORS.put("hilo", TableHiLoGenerator.class);  
-
-  GENERATORS.put("assigned", Assigned.class);  
-
-  GENERATORS.put("identity", IdentityGenerator.class);  
-
-  GENERATORS.put("select", SelectGenerator.class);  
-
-  GENERATORS.put("sequence", SequenceGenerator.class);  
-
-  GENERATORS.put("seqhilo", SequenceHiLoGenerator.class);  
-
-  GENERATORS.put("increment", IncrementGenerator.class);  
-
-  GENERATORS.put("foreign", ForeignGenerator.class);  
-
-  GENERATORS.put("guid", GUIDGenerator.class);  
-
-  GENERATORS.put("uuid.hex", UUIDHexGenerator.class); //uuid.hex is deprecated  
-
-  GENERATORS.put("sequence-identity", SequenceIdentityGenerator.class);  
-
-} 
+	@SuppressWarnings("deprecation")
+	public DefaultIdentifierGeneratorFactory() {
+		register( "uuid2", UUIDGenerator.class );
+		register( "guid", GUIDGenerator.class );			// can be done with UUIDGenerator + strategy
+		register( "uuid", UUIDHexGenerator.class );			// "deprecated" for new use
+		register( "uuid.hex", UUIDHexGenerator.class ); 	// uuid.hex is deprecated
+		register( "assigned", Assigned.class );
+		register( "identity", IdentityGenerator.class );
+		register( "select", SelectGenerator.class );
+		register( "sequence", SequenceStyleGenerator.class );
+		register( "seqhilo", SequenceHiLoGenerator.class );
+		register( "increment", IncrementGenerator.class );
+		register( "foreign", ForeignGenerator.class );
+		register( "sequence-identity", SequenceIdentityGenerator.class );
+		register( "enhanced-sequence", SequenceStyleGenerator.class );
+		register( "enhanced-table", TableGenerator.class );
+	}
 ```
 
 ##### increment生成器
@@ -238,10 +211,6 @@ static {
 
 ##### assigned生成器
 
-**不建议使用**,因为会先产生一条select语句，具体见“"4.6 save(Entity)"介绍。
-
-程序来设置这个id值，例如：程序使用uuid来设置这个id值。
-
 ```java
 	@Id
 	@GeneratedValue(generator = "assigned_generator")    
@@ -249,6 +218,41 @@ static {
 	@Column(name="log_id")
 	private String logId;
 ```
+
+**注意:**如果使用spirng data jpa的save()方法,会先产生一条select语句，具体见“"4.6 save(Entity)"介绍。
+
+解决的方法：
+
+1.使用底层的EntityManager的persist方法，例如：
+
+```java
+	@PersistenceContext
+	private EntityManager em;
+	
+	this.em.persist(databaseMetadata);	
+```
+
+2.实体类使用@version声明一个时间属性，例如：
+
+```java
+	@Id
+	@GeneratedValue(generator = "assigned_generator")
+	@GenericGenerator(name = "assigned_generator", strategy = "assigned")
+	@Column(name = "dfss_id")
+	private String dfssId;
+
+	@Column(name = "metadata_json")
+	private String metadataJson;
+
+	@Column(name = "action_type")
+	private String actionType;
+
+	@Column(name = "operate_time")
+	@Version  // 这个是必须的，否则会抛出异常
+	private Timestamp operateTime;
+```
+
+
 
 ##### 自定义Id生成器
 
@@ -315,6 +319,12 @@ void createdAt(){
   this.createdAt = new Date();
 }
 ```
+
+
+
+#### 源注释
+
+https://www.cnblogs.com/zhoukebo/p/11077771.html
 
 
 
@@ -536,6 +546,37 @@ spring data jpa的save方法比较特殊，如果你的entity中@Id标注的属�
 			return em.merge(entity);
 		}
 	}
+```
+
+解决的方法：
+
+1.使用底层的EntityManager的persist方法，例如：
+
+```java
+	@PersistenceContext
+	private EntityManager em;
+	
+	this.em.persist(databaseMetadata);	
+```
+
+2.实体类使用@version声明一个时间属性，例如：
+
+```java
+	@Id
+	@GeneratedValue(generator = "assigned_generator")
+	@GenericGenerator(name = "assigned_generator", strategy = "assigned")
+	@Column(name = "dfss_id")
+	private String dfssId;
+
+	@Column(name = "metadata_json")
+	private String metadataJson;
+
+	@Column(name = "action_type")
+	private String actionType;
+
+	@Column(name = "operate_time")
+	@Version  // 这个是必须的，否则会抛出异常
+	private Timestamp operateTime;
 ```
 
 
