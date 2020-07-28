@@ -2,7 +2,17 @@
 
 ## 1.安装和配置
 
+### spring boot redis有两种客户端
+
+1.非阻塞的lettuce客户端，线程安全的非阻塞redis客户端，一般情况无须配置连接池，但如果你的代码中有长时间占用redis的代码，例如：lua、redis事务等，最好还是配置上连接池。
+
+2.jedis阻塞客户端，阻塞的非线程安全的redis客户端，这个必须配置连接池了。
+
 ### 1.1 pom.xml
+
+#### lettuce客户端(建议)
+
+spring boot redis默认使用了lettuce客户端，默认是单连接情况，如果你需要配置连接池则需要加入commons-pool2。
 
 ```xml
 		<!-- spring boot redis -->
@@ -10,11 +20,60 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-redis</artifactId>
 		</dependency>	
+		<!-- lettuce pool use -->
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-pool2</artifactId>
+		</dependency>		
+```
+
+#### jedis客户端
+
+你需要显示的去掉lettuce-core并加入jedis客户端，然后加入commons-pool2支持连接池。
+
+```xml
+		<!-- spring boot redis -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+            <!-- 排除lettuce包，使用jedis代替-->
+            <exclusions>
+                <exclusion>
+                    <groupId>io.lettuce</groupId>
+                    <artifactId>lettuce-core</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+		<!-- https://mvnrepository.com/artifact/redis.clients/jedis -->
+		<dependency>
+		    <groupId>redis.clients</groupId>
+		    <artifactId>jedis</artifactId>
+		</dependency>
+        		
+		<!-- lettuce pool use -->
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-pool2</artifactId>
+		</dependency>	
 ```
 
 ### 1.2 application.yml
 
-这里的pool为jakarta common pool2的池配置属性。
+#### lettuce客户端(建议)
+
+lettuce单连接情况，无须配置pool，这在一般的小型的管理系统足够了。
+
+```yaml
+spring:
+  # redis    
+  redis:
+    host: 39.105.202.78 
+    port: 6400
+    timeout: 3000
+    password: xxxxx
+```
+
+lettuce连接池，lettect单连接就已经很强了，因此你的连接池不能配置的太大，过多的连接无用。
 
 ```yaml
 spring:
@@ -24,12 +83,78 @@ spring:
     port: 6400
     timeout: 3000
     password: Redis-401
-    pool:
-      minIdle: 1
-      maxIdle: 10
-      maxWait: 3
-      maxActive: 8
+    lettuce:
+      pool:
+        minIdle: 4
+        maxIdle: 4
+        maxWait: 1000
+        maxActive: 20
+        timeBetweenEvictionRuns: 30000
+      shutdownTimeout: 100
 ```
+
+lettuce连接池基于apache commons-pool2实现，具体的参数可以参见"apache commons-pool2.md"文档。
+
+minIdle： 最小空闲连接数，默认0；
+
+maxIdle： 最大空闲连接数，默认8；
+
+maxWait： 获取连接等待时间(ms)，默认-1无限等待，这个必须调整；
+
+maxActive：最大连接数上限；
+
+timeBetweenEvictionRuns： 清理(evict)线程执行的时间间隔毫秒(spring boot默认为null)，必须设置这个值否则无法开启evict线程，开启这个线程很重要。注意：lettuce的连接池evict相关的属性很多，但spring boot data redis只能设置timeBetweenEvictionRuns属性，其它属性都是commons-pool2的默认值，例如：testWhileIdle=false、numTestsPerEvictionRun=3，查看"apache commons-pool2.md"文档。
+
+shutdownTimeout：关闭lettuct客户端的时候,阻塞100毫秒,给所有lettuce连接时间让其正常关闭,超出了则强制退出。这个一般情况无须设置。
+
+#### jedis客户端
+
+jedis必须基于连接池实现，否则性能根本无法保证。连接配置对比lettuce没有什么变化，就是连接池的lettuce改为jedis。
+
+```yaml
+spring:
+  # redis sgw   
+  redis:
+    host: 192.168.5.54
+    port: 6379
+    timeout: 1000
+    password: 12345678
+    jedis:
+      pool:
+        minIdle: 1
+        maxIdle: 1
+        maxWait: 1000
+        maxActive: 20
+        timeBetweenEvictionRuns: 30000
+```
+
+jedis连接池基于apache commons-pool2实现，具体的参数可以参见"apache commons-pool2.md"文档。
+
+minIdle： 最小空闲连接数，默认0；
+
+maxIdle： 最大空闲连接数，默认8；
+
+maxWait： 获取连接等待时间(ms)，默认-1无限等待，这个必须调整；
+
+maxActive：最大连接数上限；
+
+timeBetweenEvictionRuns： 清理(evict)线程执行的时间间隔毫秒(spring boot默认为null)，必须设置这个值否则无法开启evict线程，开启这个线程很重要。
+
+不同于lettuce连接池，jedis基于JedisPoolConfig来配置连接池，JedisPoolConfig默认已经设置了如下属性：
+
+查看"apache commons-pool2.md"文档，了解下面的属性。
+
+```java
+  public JedisPoolConfig() {
+    // defaults to make your life with connection pool easier :)
+    setTestWhileIdle(true);
+    setMinEvictableIdleTimeMillis(60000);
+    setTimeBetweenEvictionRunsMillis(30000);
+    setNumTestsPerEvictionRun(-1);
+  }
+```
+
+
 
 ### 1.3 RedisTemplate
 

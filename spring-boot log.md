@@ -19,6 +19,26 @@ logging:
 
 ```
 
+### apache http client日志
+
+```yaml
+# 日志    
+logging:
+  level:
+    root: INFO 
+    org.apache.http: DEBUG 
+```
+
+### tomcat日志
+
+```yaml
+logging:
+  level:
+    root: WARN
+    org.apache.tomcat: WARN
+    org.apache.catalina: WARN
+```
+
 
 
 ## spring-logback.xml
