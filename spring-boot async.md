@@ -4,6 +4,8 @@
 
 ### 1.1 启动类加上@EnableAsync
 
+注意，如果忘加了这个源注释，则即使方法加上了@Async源注释，还是同步执行。
+
 ```java
 @SpringBootApplication
 @EnableAsync

@@ -30,15 +30,15 @@ logging:
     org.apache.http: DEBUG 
 ```
 
-### 连接池实现
+### 构建RestTemplate的Bean
 
 基于z1框架的z1.tool.httpclient.apache包内代码实现。
 
-z1.tool.httpclient.apache.HttpClientProperties为属性配置类；
+z1.tool.httpclient.apache.HttpClientProperties为属性配置类；你可以通过查看代码来查看支持的属性设置；
 
 z1.tool.httpclient.apache.HttpClientFactory为httpClient的工厂类，其创建HttpClient对象，做为RestTemplate底层通讯工具。
 
-如下，使用z1框架集成RestTemplate+apache http client连接池。
+例如：
 
 ```java
 import z1.tool.httpclient.apache.HttpClientConfig;
@@ -46,7 +46,7 @@ import z1.tool.httpclient.apache.HttpClientFactory;
 
 @Configuration
 @ConfigurationProperties(prefix = "fss.thumb-image.resttemplate")
-public class FssThumbImageRestTemplateConfiguration extends HttpClientConfig {
+public class FssThumbImageRestTemplateConfiguration extends HttpClientProperties {
 	
 	@Bean
 	public RestTemplate thumbImageRestTemplate() {
@@ -58,7 +58,58 @@ public class FssThumbImageRestTemplateConfiguration extends HttpClientConfig {
 }
 ```
 
-### 请求URI构建
+你可以通过yaml配置文件，来配置这个RestTemplate客户端，例如：
+
+```yaml
+fss:
+  thumb-image:
+    resttemplate:
+      connectTimeout: 2000
+      readTimeout: 10000
+      
+```
+
+#### 连接池实现
+
+参见“HttpClientProperties”文档，z1框架已经封装了实现，你只需要修改yaml配置就可以了，默认已经开启了连接池。
+
+最好通过查看HttpClientProperties类代码，来深入了解连接池相关的配置属性。
+
+例如：
+
+```yaml
+fss:
+  thumb-image:
+    resttemplate:
+      maxConnTotal: 10
+      maxConnPerRoute: 10
+      keepAliveTime: 60
+      keepAliveTargetHost:
+        "www.163.com": 10
+        "www.lnyg.net": 20
+      
+```
+
+#### https支持
+
+参见“HttpClientProperties”文档，z1框架已经封装了实现，你只需要修改yaml配置就可以了。
+
+例如：
+
+```yaml
+fss:
+  thumb-image:
+    resttemplate:
+      allowUntrustedCerts: false
+```
+
+
+
+### 请求URI或URL构建
+
+Spring RestTemplate提供了URI uri和String URL两种来声明请求发送的位置。两种方式有区别，URI方式的请求Spring RestTemplate不再进行URI变量替换和uri encode参数编码，而String URL发送的请求Spring RestRemplate会进行URL变量替换和url encode参数编码。
+
+
 
 **基于Restful URI参数变量的构建**
 
@@ -67,6 +118,8 @@ public class FssThumbImageRestTemplateConfiguration extends HttpClientConfig {
 ```java
 this.restTemplate.getForObject("http://localhost/app/{appId}", App.class, 999l);
 ```
+
+restTemplate的URI参数
 
 **URI的Query部分参数构建**
 
@@ -120,6 +173,57 @@ FileSystemResource fileSystemResource1 = new FileSystemResource("C:\\T_SERVICE_L
 params.add("file1",fileSystemResource1);        
 HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(params, headers);
 ```
+
+### 构建application/json请求
+
+```java
+	private ResponseEntity<ResponseInfo> internalPostJson(String action, String json) {
+		URL requestUrl = this.urlGenerator.generate(action, null);
+		HttpHeaders headers = new HttpHeaders();
+		headers.setContentType(MediaType.APPLICATION_JSON);
+		headers.add("appkey", this.clientProperties.getAppkey());
+		HttpEntity<String> requestEntity = new HttpEntity<>(json,headers);
+		ResponseEntity<ResponseInfo> responseEntity = null;
+		try {
+			responseEntity = this.elicenseClientRestTemplate.exchange(requestUrl.toString(), HttpMethod.POST,requestEntity, ResponseInfo.class);
+		} catch (Exception ex) {
+			throw new RestTemplateExchangeException(requestUrl, requestEntity, responseEntity,
+					"dzzz service client execute error.", ex);
+		}
+		if (!HttpStatus.OK.equals(responseEntity.getStatusCode())) {
+			throw new RestTemplateExchangeException(requestUrl, requestEntity, responseEntity,
+					"http response status code[" + responseEntity.getStatusCodeValue() + "] error.");
+		}
+		if (logger.isDebugEnabled()) {
+			logger.debug("request url[{}], requestEntity[{}], responseEntity[{}].", requestUrl, requestEntity,
+					responseEntity);
+		}
+		return responseEntity;
+	}
+	
+```
+
+### 指定响应内容格式
+
+如果服务端是spring mvc rest构建的服务，则客户端可以使用，如下三种方式来指定响应内容格式：
+
+1.请求URL扩展名：例如：请求原地址URL为/get，那么想获取json内容格式，请求URL为/get.json，获取xml内容格式，请求URL为/get.xml。
+
+2.请求参数format：例如：请求原地址URL为/get，那么想获取json内容格式，请求URL为/get?format=json，获取xml内容格式，请求URL为/get?format=xml。
+
+3.请求头Accept：例如：请求原地址URL为/get，那么想获取json内容格式，加入请求头Accept:application/json，获取xml内容格式，请求头Accept:application/xml。例如：RestTemplate默认Accept是根据RestTemplate定义MessageConverter来生成的，也就是我有什么消息解析器，我就使用Accept头，通知服务器。如果服务器端只支持json格式输出，那你就显示的设置Accept:application/json，如下：
+
+```java
+		HttpHeaders headers = new HttpHeaders();
+		List<MediaType> accept = new ArrayList<>();
+		accept.add(MediaType.APPLICATION_JSON);
+		headers.setAccept(accept);
+		HttpEntity<Void> requestEntity = new HttpEntity<>(headers);
+```
+
+详细介绍参见：spring-boot mvc.md文档。
+
+
 
 ### 发送请求
 

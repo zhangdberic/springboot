@@ -323,3 +323,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 }
 ```
 
+### CPU消耗大
+
+注意，如果你使用spring boot admin实时监控某个服务和应用，则cpu消耗百分比马上就上去。这个要注意，如果没必要不要在生产环境下监控，例如：查看jvm运行情况，cpu的使用率会从0.3%上升到56%。
+

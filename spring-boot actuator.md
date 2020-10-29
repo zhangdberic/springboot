@@ -9,7 +9,7 @@ management:
     port: 18080  
 ```
 
-注意：actuator开放，应该设置一个独立的端口为actuator访问服务，不应使用和业务服务同一个端口，从安全角度考虑也是非常有必要的。
+注意：actuator开放，应该设置一个独立的端口为actuator访问服务，不应使用和业务服务同一个端口，从安全角度考虑也是非常有必要的。如果actuator使用独立的端口，系统就会再启动一个tomcat来专门处理actuator请求，你可以使用jstack来观察线程情况，其线程数量依据server.tomcat.min-spare-threads，其会同时控制系统tomcat和actuator tomcat的线程数，无法单独为actuator tomcat来设置线程数。
 
 ## 设置端点(功能)
 
@@ -117,6 +117,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
 
 ## 安全shutdown
+
+生产环境不建议使用，比较危险。
 
 ### application.yml
 

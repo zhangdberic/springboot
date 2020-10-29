@@ -1066,7 +1066,199 @@ public class ServiceReturnValueResponseBodyAdvice implements ResponseBodyAdvice<
 
 
 
+### RestController输出内容协商
 
+基于内容协商机制：
+
+#### 1.扩展名指定输出格式
+
+支持的条件：
+
+1.Controller的方法必须声明要支持输出的内容格式，例如：produces = {"application/json;charset=UTF-8","application/xml;charset=UTF-8"}
+
+2.请求URL必须加入扩展名，例如：get.xml或get.json
+
+例如：我定义了一个Controller类和提供了一个get方法，我声明方法的produces支持json和xml，这样就可以根据用户请求的扩展名来输出对应格式的内容，例如：
+
+xml格式输出请求：http://localhost:4800/manufacture/get.xml
+
+json格式输出请求：http://localhost:4800/manufacture/get.json
+
+如果你声明的方法produces只支持json(例如：produces="application/json;charset=UTF-8")，那么发送get.xml请求将报错。
+
+```java
+@RestController
+public class ManufactureLicenseController {
+
+	@Autowired
+	private ManufactureProtocolLayerClient manufactureClient;
+
+	@GetMapping(value = "/manufacture/get", produces = {"application/json;charset=UTF-8","application/xml;charset=UTF-8"})
+	public ResponseInfo get(@RequestParam String action, @RequestParam Map<String, String> urlParams,
+			HttpServletResponse response) throws IOException, ServiceException {
+		response.setContentType("application/json;charset=UTF-8");
+		ResponseInfo responseInfo = this.manufactureClient.get(action, urlParams);
+		if (!ResponseInfo.SUCCESS_CODE.equals(responseInfo.getCode())) {
+			throw new ServiceException(responseInfo.getCode(), responseInfo.getMsg(), "调用电子证照服务[" + action + "]错误");
+		}
+		return responseInfo;
+	}
+```
+
+#### 2.请求参数format指定输出格式
+
+支持的条件：
+
+1.Controller的方法必须声明要支持输出的内容格式，例如：produces = {"application/json;charset=UTF-8","application/xml;charset=UTF-8"}
+
+2.请求url参数加入format=xml或者format=json，由这个参数来决定输出内容格式
+
+3.开启format参数，配置如下:
+
+```java
+@Configuration
+public class WebMvcConfiguration extends WebMvcConfigurationSupport {
+	
+	protected void configureContentNegotiation(ContentNegotiationConfigurer configurer) {
+		configurer.favorParameter(true);
+	}
+}
+```
+
+例如：我定义了一个Controller类和提供了一个get方法，我声明方法的produces支持json和xml，这样就可以根据用户请求的扩展名来输出对应格式的内容，例如：
+
+xml格式输出请求：http://localhost:4800/manufacture/get?format=xml
+
+json格式输出请求：http://localhost:4800/manufacture/get?format=json
+
+如果你声明的方法produces只支持json(例如：produces="application/json;charset=UTF-8")，那么发送get?format=xml请求将报错。
+
+```java
+@RestController
+public class ManufactureLicenseController {
+
+	@Autowired
+	private ManufactureProtocolLayerClient manufactureClient;
+
+	@GetMapping(value = "/manufacture/get", produces = {"application/json;charset=UTF-8","application/xml;charset=UTF-8"})
+	public ResponseInfo get(@RequestParam String action, @RequestParam Map<String, String> urlParams,
+			HttpServletResponse response) throws IOException, ServiceException {
+		response.setContentType("application/json;charset=UTF-8");
+		ResponseInfo responseInfo = this.manufactureClient.get(action, urlParams);
+		if (!ResponseInfo.SUCCESS_CODE.equals(responseInfo.getCode())) {
+			throw new ServiceException(responseInfo.getCode(), responseInfo.getMsg(), "调用电子证照服务[" + action + "]错误");
+		}
+		return responseInfo;
+	}
+```
+
+#### 3.请求头Accept指定内容输出格式(默认)
+
+支持的条件：
+
+1.Controller的方法必须声明要支持输出的内容格式，例如：produces = {"application/json;charset=UTF-8","application/xml;charset=UTF-8"}
+
+2.请求头Accept指定输出格式，例如：Accept:application/xml
+
+例如：我定义了一个Controller类和提供了一个get方法，我声明方法的produces支持json和xml，这样就可以根据用户请求的扩展名来输出对应格式的内容，例如：
+
+xml格式输出请求：http://localhost:4800/manufacture/get，请求头Accept:application/xml
+
+json格式输出请求：http://localhost:4800/manufacture/get，请求头Accept:application/json
+
+如果你声明的方法produces只支持json(例如：produces="application/json;charset=UTF-8")，那么发送get?format=xml请求将报错。
+
+```java
+@RestController
+public class ManufactureLicenseController {
+
+	@Autowired
+	private ManufactureProtocolLayerClient manufactureClient;
+
+	@GetMapping(value = "/manufacture/get", produces = {"application/json;charset=UTF-8","application/xml;charset=UTF-8"})
+	public ResponseInfo get(@RequestParam String action, @RequestParam Map<String, String> urlParams,
+			HttpServletResponse response) throws IOException, ServiceException {
+		response.setContentType("application/json;charset=UTF-8");
+		ResponseInfo responseInfo = this.manufactureClient.get(action, urlParams);
+		if (!ResponseInfo.SUCCESS_CODE.equals(responseInfo.getCode())) {
+			throw new ServiceException(responseInfo.getCode(), responseInfo.getMsg(), "调用电子证照服务[" + action + "]错误");
+		}
+		return responseInfo;
+	}
+```
+
+```
+如果你请求头为Accept:*/*，那么就使用Controller方法上源注释produces声明的第一个输出格式为准；
+如果没有Accept请求头，同上处理过程，使用Controller方法上源注释produces声明的第一个输出格式为准；
+如果Accept后多个值，顺序读取值和Controller上面的声明的produces匹配，第一个匹配上的作为输出格式；
+```
+
+##### 通过浏览器发送请求格式不正确
+
+有的时候测试http get请求服务，直接使用浏览器发送情况了，但返回的结果不是你想要的为什么？因为不同浏览器默认发送请求的Accept是不同的，例如：chrome，Accept：text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9，注意第一个是text/html，spring mvc后台没有对应的转换器，其会再使用第二个application/xhtml+xml，spring mvc后台任然没有对应的转换器，当使用到第三个的时候application/xml和spring mvc后台的MappingJackson2XmlHttpMessageConverter匹配上了，因此就使用xml为格式输出内容了。
+
+#### 4.默认情况下(客户端没有指定输出格式)
+
+默认情况下使用Controller方法上源注释produces声明的第一个输出格式为准；
+
+什么是默认情况下：
+
+1.没有指定请求URL扩展名；
+
+2.没有使用format请求参数；
+
+3.Accept请求头无值；
+
+#### 5.没有声明produces源注释
+
+扩展名方式：例如：get.xml或者get.json，那么根据指定的扩展名格式来输出内容。
+
+format参数方式：例如：get?format=json或者get?format=json，那么根据指定的请求参数format格式来输出内容。
+
+Accept请求头方式：例如：Accept:application/xml或者Accept:application/json，那么根据指定的请求头Accept格式输出内容。如果你的Accept请求头有多个值，那么会使用第1个值作为输出格式。
+
+也就说，如果你没有指定Controller方法的produces源注释，那么使用上面规则，如果你指定了produces源注释而你发送请求格式又不在其指定的格式范围内，则抛出异常。
+
+没有定义任何请求格式(无URL扩展名、无format参数，无请求头Accept)，也无produces源注释声明，那么就使用spring mvc定义的第一个HttpMessageConverter来输出内容(见WebMvcConfigurationSupport#addDefaultHttpMessageConverters方法)。这里有技巧设置默认输出格式，你通过如下代码，让某种输出格式的转换器置顶，这样在没有任何匹配的情况下，就使用这个转换器**默认输出**内容了。
+
+这个特别适合在抛出异常的时候走ServiceExceptionControllerAdvice代码，因为其没有指定任何输出格式，因此会使用第一个HttpMessageConverter格式来转换和输出内容。
+
+```java
+@Configuration
+public class WebMvcConfiguration extends WebMvcConfigurationSupport {
+
+	@Override
+	protected void configureMessageConverters(List<HttpMessageConverter<?>> converters) {
+		// 基于服务协议的jackson消息转换器(代替spring默认的jackson转换器)
+		ServiceMappingJackson2HttpMessageConverter serviceMappingJackson2HttpMessageConverter = new ServiceMappingJackson2HttpMessageConverter();
+		converters.add(serviceMappingJackson2HttpMessageConverter);
+		
+		this.addDefaultHttpMessageConverters(converters);
+	}
+}    
+```
+
+请求客户端可以指定各种输出格式，但spring后台必须有对于格式的转换器类，如果没有支持的转换器类，将抛出异常(org.springframework.web.HttpMediaTypeNotAcceptableException: Could not find acceptable representation)，通过
+
+查看WebMvcConfigurationSupport#addDefaultHttpMessageConverters方法来观察支持的转换器和优先级。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+**Accept**
 
 ## 2.RestController
 

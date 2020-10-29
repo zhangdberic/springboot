@@ -29,7 +29,11 @@
 		</dependency>
 ```
 
+注意：如果基于dbcp2连接池则需要引入commons-dbcp2依赖包(最好上http://mvnrepository.com/查看使用最稳定的新版本，或者使用spring cloud自带的dbcp2版本)，如果使用hikari连接池则无需引入commons-dbcp2依赖包。
+
 ### 1.2 application.yml
+
+#### 基本属性设置
 
 ```yml
 spring:
@@ -42,13 +46,8 @@ spring:
     url: jdbc:oracle:thin:@//192.168.0.250:1521/orcl
     username: xxx
     password: xxxxxxx
-    dbcp2:
-      initial-size: 1
-      min-idle: 1
-      max-idle: 8
-      test-on-borrow: true
-      validation-query: select 1 from dual
-      validation-query-timeout: 1000
+  transaction:
+    default-timeout: -1 # 设置默认事务超时时间(秒),开发环境设置为-1永不超时.        
          
 ```
 
@@ -62,9 +61,31 @@ public class OracleDialect extends Oracle10gDialect {
 }
 ```
 
+#### dbcp2连接池(建议)
 
+默认spring boot repository使用的hikari连接池，但我对dbcp2底层使用的commons-pool2更加了解，见apache commons-pool2.md文档，因此这里建议使用dbcp2连接池。
 
-hikari连接池
+```yaml
+spring:
+  datasource:
+    type: org.apache.commons.dbcp2.BasicDataSource  # 设置为dbcp2数据源
+    dbcp2:
+      default-auto-commit: false # 关闭自动提交
+      initial-size: 1  # 初始化创建连接个数，建议和min-idle相同
+      min-idle: 1 # 保持最小空闲连接个数
+      max-idle: 8 # 最大空闲连接个数,超出了被销毁
+      max-total: 30 # 连接池最大连接数
+      max-wait-millis: 2000 # 创建连接对象最大等待超时时间
+      test-on-borrow: true # 借出连接是否检查有效性
+      lifo: false # 设置为false先进先出
+      validation-query: select 1 from dual # 检查连接有效性sql语句
+      validation-query-timeout: 1000 # 检查有效性sql语句执行超时时间(ms)
+      time-between-eviction-runs-millis: 30000 # 启动evict后台清理线程,每个30000ms执行一次清理工作(清理空闲连接)
+      num-tests-per-eviction-run: -1 # evict后台清理线程,每次执行检查的空闲连接数,-1为全部检查
+      test-while-idle: true # evict后台清理线程,是否检查空闲连接的有有效性.
+```
+
+#### hikari连接池
 
 ```yaml
       
@@ -83,7 +104,23 @@ hikari连接池
       auto-commit: false  #此属性控制从池返回的连接的默认自动提交行为,默认值：true
       max-lifetime: 1800000 #此属性控制池中连接的最长生命周期，值0表示无限生命周期，默认1800000即30分钟
       connection-timeout: 30000 #数据库连接超时时间,默认30秒，即30000
-      connection-test-query: SELECT 1 FROM DUAL 
+      connection-test-query: SELECT 1 FROM DUAL # 验证连接有效性sql
+      validation-timeout: 2000 # # 验证连接有效性sql执行超时时间
+    
+```
+
+#### 显示sql日志
+
+```yaml
+# 日志    
+logging:
+  level:
+    root: info
+    org.hibernate.SQL: debug
+    org.hibernate.type: trace
+    org.hibernate.type.BasicTypeRegistry: error
+    org.springframework.orm.jpa.JpaTransactionManager: debug   
+
 ```
 
 
@@ -419,6 +456,28 @@ public interface UserRepository extends JpaRepository<User, Long> {
 public interface UserRepository extends JpaRepository<User, Long> {
 	List<User> findByCreatedTimeBetweenOrderByCreatedTime(Date startDate,Date endDate);
 }
+```
+
+#### In属性查询
+
+方法名为XxxxIn，例如：StatusIn，对于的参数应该使用集合类型
+
+```java
+	public List<ElicenseLog> findByInsertTimeBetweenAndStatusInOrderByLogId(Date startInsertTime, Date endInsertTime, List<String> status);
+```
+
+#### topN(获取前n条记录)
+
+方法名，findTopN，例如：findTop10，看下面的例子：
+
+```java
+List<ElicenseLog> elicenseLogs = this.elicenseLogRepository.findTop10ByInsertTimeBetweenAndStatusInOrderByLogId(DateUtils.parseDate("2020-10-10", "yyyy-MM-dd"), DateUtils.parseDate("2020-10-21", "yyyy-MM-dd"), status);
+```
+
+生成的sql语句，明显加入了rownum：
+
+```sql
+select * from ( select elicenselo0_.log_id as log_id1_0_, elicenselo0_.action as action2_0_, elicenselo0_.body as body3_0_, elicenselo0_.certificate_holdercode as certificate_holder4_0_, elicenselo0_.certificate_type as certificate_type5_0_, elicenselo0_.error as error6_0_, elicenselo0_.insert_time as insert_time7_0_, elicenselo0_.request_body as request_body8_0_, elicenselo0_.request_time as request_time9_0_, elicenselo0_.response_body as response_body10_0_, elicenselo0_.response_time as response_time11_0_, elicenselo0_.spend_time as spend_time12_0_, elicenselo0_.status as status13_0_ from t_elicense_log elicenselo0_ where (elicenselo0_.insert_time between ? and ?) and (elicenselo0_.status in (? , ?)) order by elicenselo0_.log_id asc ) where rownum <= ?
 ```
 
 
